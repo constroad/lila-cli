@@ -45,6 +45,12 @@ npx @constroad/lila-cli apk publish
 
 Para usarlo seguido, `npm i -g @constroad/lila-cli` y queda como `lila`.
 
+> **`npx` no funciona desde ESTE repo**, y no es un bug del paquete: adentro de
+> `lila-cli/` npx ve el `package.json` local que declara el bin `lila`, asume que
+> lo provee el proyecto y busca `node_modules/.bin/lila`, que no existe porque no
+> hay dependencias que instalar. Da `sh: lila: command not found`. Desde
+> cualquier otra carpeta anda. Para desarrollar acá: `npm link`.
+
 Requiere **Node 20 o mayor**. No tiene dependencias: solo builtins y `fetch`.
 Eso también es a propósito — corre en el runner de otro repo, donde no hay
 `node_modules` de nada nuestro, y un CLI que exige compilarse es un CLI que un

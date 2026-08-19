@@ -4,7 +4,7 @@
  * `whoami` existe por una razón concreta: **un token vencido tiene que
  * descubrirse antes de una compilación de quince minutos, no después.**
  */
-import { rojo, verde, tenue, preguntarOculto } from './consola.mjs';
+import { rojo, verde, tenue, aviso, preguntarOculto } from './consola.mjs';
 import { guardarToken, tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
 
 export async function login(opciones) {
@@ -45,17 +45,26 @@ export async function whoami(opciones) {
 }
 
 function imprimirQuien(quien) {
-  console.log(`app    : ${quien.app}`);
+  console.log(`app    : ${quien.app}${quien.name ? ` (${quien.name})` : ''}`);
+  console.log(`repo   : ${quien.repo || '—'}`);
   console.log(`vence  : ${quien.vence}`);
+  console.log(`uso    : ${quien.lastUsed ?? 'nunca'}`);
+
+  // El aviso va DESPUÉS de los datos y en amarillo: es lo único accionable de
+  // toda la salida, y arriba se pierde entre líneas que nadie lee dos veces.
+  if (quien.porVencer) {
+    aviso(`Vence en ${quien.diasRestantes} días. Generá otro en /console/tokens.`);
+  }
   return 0;
 }
 
 /**
  * Pregunta al server a qué app publica este token.
  *
- * **El endpoint todavía no existe** (`GET /api/v1/token`), así que por ahora se
- * cae a un `--seco` contra el de publicación, que valida el token sin subir
- * nada. Se deja marcado: es una API que falta, no lógica que deba vivir acá.
+ * **La respuesta la arma el server, no este CLI.** Los días que faltan, si está
+ * por vencer y si sigue vigente salen de `GET /api/v1/token`: calcularlos acá
+ * sería una segunda implementación de la misma regla, y el día que difieran el
+ * `whoami` diría «vigente» sobre algo que el `publish` rechaza.
  */
 async function consultar(base, token) {
   try {
@@ -63,18 +72,36 @@ async function consultar(base, token) {
       headers: { authorization: `Bearer ${token}` },
     });
     if (respuesta.status === 404) {
-      return {
-        ok: true,
-        app: '(el server no expone todavía GET /api/v1/token)',
-        vence: 'desconocido',
-      };
+      // Un server viejo, de antes de que existiera la ruta. Se dice, en vez de
+      // inventar un «desconocido» que parece un dato.
+      return { ok: false, mensaje: `${base} no expone GET /api/v1/token: está desactualizado.` };
     }
-    if (respuesta.status === 401) return { ok: false, mensaje: 'El token no sirve: inválido, revocado o vencido.' };
+    if (respuesta.status === 401) {
+      return { ok: false, mensaje: 'El token no sirve: inválido, revocado o vencido.' };
+    }
     if (!respuesta.ok) return { ok: false, mensaje: `El server respondió ${respuesta.status}.` };
 
     const datos = await respuesta.json();
-    return { ok: true, app: datos.app ?? '—', vence: datos.expiresAt ?? '—' };
+    if (!datos.vigente) {
+      const porque = datos.motivo === 'revocado' ? 'lo revocaron' : 'venció';
+      return { ok: false, mensaje: `El token de «${datos.app}» ya no sirve: ${porque}.` };
+    }
+
+    return {
+      ok: true,
+      app: datos.app,
+      name: datos.name,
+      repo: datos.repo,
+      vence: `${fecha(datos.expiresAt)} (en ${datos.diasRestantes} días)`,
+      diasRestantes: datos.diasRestantes,
+      porVencer: datos.porVencer === true,
+      lastUsed: datos.lastUsed ? fecha(datos.lastUsed) : null,
+    };
   } catch (fallo) {
     return { ok: false, mensaje: `No se pudo contactar a ${base}: ${fallo.message}` };
   }
 }
+
+/** Una fecha que se lee, no un ISO con milisegundos. */
+const fecha = (iso) =>
+  new Date(iso).toLocaleDateString('es-PE', { year: 'numeric', month: 'short', day: 'numeric' });
