@@ -27,8 +27,9 @@ const ABI_POR_DEFECTO = 'arm64-v8a';
 /** Qué banderas admite cada comando. Lo que no está acá, se rechaza. */
 const BANDERAS = {
   'keystore:crear': ['clave-generada'],
-  'keystore:respaldar': [],
-  'keystore:verificar': [],
+  // `--a` se puede repetir: cada una es una copia MÁS, fuera de esta máquina.
+  'keystore:respaldar': ['a'],
+  'keystore:verificar': ['a'],
   'keystore:huella': [],
   'apk:build': ['abi', 'firma', 'salida'],
   'apk:publish': ['channel', 'notes', 'critical', 'seco', 'url'],
@@ -46,7 +47,8 @@ const USO = `Uso:
 
   lila keystore crear <app>        genera la keystore de producción
   lila keystore respaldar <app>    copia cifrada + verifica que restaure
-  lila keystore verificar <app>    confirma que el respaldo sigue sirviendo
+     --a=/ruta/otra/copia.enc      copia adicional; se puede repetir
+  lila keystore verificar <app>    confirma que TODAS las copias sirven
   lila keystore huella <app>       la huella sha256, para el alta en la consola
 
   lila apk build                   compila y firma
@@ -60,6 +62,9 @@ const error = (mensaje) => ({ error: `${mensaje}\n\n${USO}`, comando: undefined,
 export function parseArgs(argv) {
   const sueltos = argv.filter((a) => !a.startsWith('--'));
   const banderas = new Map();
+  // `--a` se ACUMULA en vez de pisarse: cada repetición es otra copia del
+  // respaldo, y que la última ganara en silencio dejaría al resto sin escribir.
+  const repetidas = [];
 
   for (const arg of argv.filter((a) => a.startsWith('--'))) {
     const [clave, ...partes] = arg.slice(2).split('=');
@@ -67,6 +72,7 @@ export function parseArgs(argv) {
     if (!BOOLEANAS.has(clave) && partes.length > 0 && valor === '') {
       return error(`--${clave} está vacía.`);
     }
+    if (clave === 'a') repetidas.push(valor);
     banderas.set(clave, partes.length > 0 ? valor : true);
   }
 
@@ -96,6 +102,8 @@ export function parseArgs(argv) {
   const malas = validarBanderas(comando, banderas);
   if (malas) return error(malas);
 
+  if (repetidas.length > 0) banderas.set('__copias', repetidas);
+
   return primero === 'keystore'
     ? keystore(comando, resto[1], banderas)
     : apk(comando, resto[1], banderas);
@@ -108,7 +116,11 @@ function keystore(comando, app, banderas) {
   return {
     error: undefined,
     comando,
-    opciones: { app, claveGenerada: banderas.get('clave-generada') === true },
+    opciones: {
+      app,
+      claveGenerada: banderas.get('clave-generada') === true,
+      copias: banderas.get('__copias') ?? [],
+    },
   };
 }
 

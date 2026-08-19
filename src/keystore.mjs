@@ -16,9 +16,9 @@
  * de `ps`.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, appendFileSync, chmodSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, appendFileSync, chmodSync, readFileSync, statSync, copyFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { rojo, verde, aviso, preguntarOculto } from './consola.mjs';
 
@@ -173,7 +173,30 @@ function declararEnGradle(app, destino, clave) {
   return 0;
 }
 
-export async function respaldar(app) {
+/**
+ * Las copias adicionales, cada una verificada de verdad.
+ *
+ * **El riesgo real no es el cifrado: es que haya una sola copia.** El original y
+ * el respaldo por defecto viven en el MISMO disco, así que un disco que se rompe
+ * se los lleva juntos. Por eso `--a` existe y por eso el comando avisa cuando no
+ * se usó.
+ */
+function copiarA(destinos, cifrado) {
+  const hechas = [];
+  for (const destino of destinos) {
+    try {
+      mkdirSync(dirname(destino), { recursive: true });
+      copyFileSync(cifrado, destino);
+      chmodSync(destino, 0o600);
+      hechas.push(destino);
+    } catch (fallo) {
+      rojo(`No pude copiar a ${destino}: ${fallo.message}`);
+    }
+  }
+  return hechas;
+}
+
+export async function respaldar(app, opciones = {}) {
   const keytool = buscarKeytool();
   if (!keytool) return rojo('No hay ningún JDK.');
   const origen = rutaKeystore(app);
@@ -209,25 +232,67 @@ export async function respaldar(app) {
   const codigo = verificarCon(keytool, app, clave);
   if (codigo !== 0) return codigo;
 
+  const copias = copiarA(opciones.copias ?? [], cifrado);
+  for (const destino of copias) {
+    // Se verifica CADA copia, no se asume que copiar salió bien. Un archivo a
+    // medias en un disco externo es exactamente el respaldo que falla el día que
+    // hace falta.
+    if (verificarArchivo(keytool, app, clave, destino, true) !== 0) return 1;
+    verde(`Copia verificada: ${destino}`);
+  }
+
   console.log('');
-  aviso('Falta lo que este comando no puede hacer por vos:');
-  console.log(`   1. Copiá ${cifrado} a DOS lugares fuera de esta computadora.`);
-  console.log('      Un disco que se rompe se lleva el original y el respaldo juntos.');
-  console.log('   2. Guardá la contraseña en tu gestor, anotando a qué archivo abre.');
-  console.log(`      Hoy vive solo en ${PROPS}, que NO está respaldado.`);
+  if (copias.length === 0) {
+    aviso('Hay UNA sola copia, y está en el mismo disco que el original.');
+    console.log('   Un disco que se rompe se lleva las dos. Agregá al menos una:');
+    console.log(`     lila keystore respaldar ${app} --a=/Volumes/USB/${app}.enc`);
+  } else {
+    verde(`${copias.length + 1} copias, todas verificadas.`);
+    aviso('Que al menos una esté fuera de esta computadora.');
+  }
+  console.log('');
+  aviso('Y lo que ningún comando puede hacer por vos:');
+  console.log('   Guardá la contraseña en tu gestor, anotando a qué archivo abre.');
+  console.log(`   Hoy vive solo en ${PROPS}, que NO está respaldado.`);
   return 0;
 }
 
-export async function verificar(app) {
+export async function verificar(app, opciones = {}) {
   const keytool = buscarKeytool();
   if (!keytool) return rojo('No hay ningún JDK.');
   if (!existsSync(rutaKeystore(app))) return rojo(`No existe ${rutaKeystore(app)}.`);
   const clave = claveDeGradle(app) ?? (await preguntarOculto('Contraseña de la keystore'));
-  return verificarCon(keytool, app, clave);
+
+  const codigo = verificarCon(keytool, app, clave);
+  if (codigo !== 0) return codigo;
+
+  // Cada copia declarada, una por una. Que exista el archivo no alcanza: lo que
+  // se comprueba es que RESTAURE la misma clave.
+  let fallaron = 0;
+  for (const destino of opciones.copias ?? []) {
+    if (!existsSync(destino)) {
+      rojo(`Falta la copia ${destino}`);
+      fallaron += 1;
+    } else if (verificarArchivo(keytool, app, clave, destino, true) !== 0) {
+      fallaron += 1;
+    } else {
+      verde(`Copia verificada: ${destino}`);
+    }
+  }
+  return fallaron === 0 ? 0 : 1;
 }
 
-function verificarCon(keytool, app, clave) {
-  const cifrado = rutaRespaldo(app);
+const verificarCon = (keytool, app, clave) =>
+  verificarArchivo(keytool, app, clave, rutaRespaldo(app));
+
+/**
+ * Descifra UN archivo de respaldo y confirma que trae la misma clave.
+ *
+ * `silencioso` para las copias adicionales: cada una ya se anuncia con su ruta,
+ * y repetir «el respaldo restaura la misma clave» por copia convierte una lista
+ * de tres en seis líneas donde no se ve cuál falló.
+ */
+function verificarArchivo(keytool, app, clave, cifrado, silencioso = false) {
   if (!existsSync(cifrado)) return rojo(`No existe el respaldo ${cifrado}.`);
 
   // La copia en claro vive en un temporal que se borra pase lo que pase: si
@@ -251,8 +316,10 @@ function verificarCon(keytool, app, clave) {
       return 1;
     }
 
-    verde('El respaldo restaura la misma clave.');
-    console.log(`  huella: ${original}`);
+    if (!silencioso) {
+      verde('El respaldo restaura la misma clave.');
+      console.log(`  huella: ${original}`);
+    }
     return 0;
   } finally {
     rmSync(temporal, { recursive: true, force: true });

@@ -174,6 +174,19 @@ podría publicar releases de esa app.
 lo que acaba de escribir y compara la huella del certificado restaurado contra la
 del original.
 
+**Y una copia sola no es un respaldo tampoco.** El original y la copia por
+defecto viven en el MISMO disco: uno que se rompe se lleva los dos. `--a` se
+repite, y **cada copia se verifica de verdad** — que el archivo exista no
+alcanza, se comprueba que restaure la misma clave.
+
+```bash
+lila keystore respaldar timon --a=/Volumes/USB/timon.enc --a=~/Drive/timon.enc
+lila keystore verificar timon --a=/Volumes/USB/timon.enc   # ¿sigue sirviendo?
+```
+
+Sin `--a`, el comando avisa que hay una sola copia. `verificar` sale con código 1
+si falta una o está corrupta, así que se puede poner en un recordatorio.
+
 ### Las tres guardas del build
 
 Salen de errores que ya pasaron, no de una lista de buenas prácticas:
