@@ -1,6 +1,6 @@
 {
   "name": "@constroad/lila-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Keystores, builds y publicación de las apps Android de ConstRoad en LilaStore",
   "license": "MIT",
   "type": "module",
