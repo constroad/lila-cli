@@ -25,16 +25,38 @@ a `stable` en silencio. Es la diferencia entre un error y un incidente.
 **Nada de secretos en el repo.** El token viaja por entorno o por el archivo de
 credenciales del usuario (modo 600). Este repo es público.
 
-**El metadata sale del repo, no de la mano.** En un proyecto Expo, versión,
-`versionCode` y `package` se leen de `app.json`. El servidor no parsea el
-`AndroidManifest`, así que un número tipeado a mano puede mentirle a la tienda
-sin que nada lo detecte.
+**El metadata sale del BINARIO, y no lo lee este CLI.** Desde el 18/08/2026 el
+servidor parsea el `AndroidManifest.xml` del APK que se sube: la versión, el
+`versionCode`, el `package`, el `minSdk` y el `targetSdk` salen de ahí. `publish`
+manda el archivo y el `sha256`, nada más. Esta regla decía lo contrario —que se
+leyeran de `app.json`— y no alcanzaba: ahí no están `minSdk` ni `targetSdk`, y un
+chequeo del lado del cliente lo saltea cualquiera que use `curl`.
+
+**Las herramientas se RESUELVEN, no se heredan.** El entorno de quien corre esto
+no es confiable, y los tres errores que costaron una tarde cada uno fueron eso:
+
+- **El JDK.** Android Studio actualizó su JBR a 25 y Gradle empezó a morir en
+  CMake con «A restricted method in java.lang.System has been called» (JEP 472).
+  Se busca el 17 y se aborta con el `brew install` exacto.
+- **El SDK.** Gradle falla con «SDK location not found», y ese mensaje manda a
+  editar `local.properties`, que `expo prebuild` regenera.
+- **`keytool` de `/usr/bin` en macOS es un stub** que responde «Unable to locate
+  a Java Runtime». El bueno viene adentro de Android Studio.
+
+**Los códigos de salida tampoco se creen.** LibreSSL —el `openssl` de macOS—
+devuelve `0` ante un subcomando inválido: sin el `enc` adelante el cifrado
+«funcionaba» y dejaba un archivo que no existía, y el error salía tres pasos
+después como «el respaldo está corrupto». Se comprueba el efecto, no el status.
+
+**Ninguna contraseña por `argv`.** Van por variable de entorno a `keytool`
+(`-storepass:env`) y por stdin a `openssl` (`-pass stdin`). Un `-storepass
+miClave` queda en el historial del shell y a la vista de `ps`.
 
 ## Estructura de comandos
 
 Sustantivo y después verbo: `lila <área> <acción>`. Un área nueva no obliga a
-renombrar nada de lo anterior. Las áreas de hoy: `apk`. Las previstas: `torre`,
-`auth`, `store`.
+renombrar nada de lo anterior. Las áreas de hoy: `keystore` y `apk`. Las
+previstas: `torre`, `auth`, `store`.
 
 Los comandos sueltos (`login`, `whoami`) son los transversales, y son pocos a
 propósito.
@@ -54,8 +76,7 @@ un runner que queda guardado.
 ## Comandos del repo
 
 ```bash
-npm test          # node --test
-npm run lint
+npm test          # node --test, sin dependencias
 ```
 
 ## Definition of done
@@ -66,4 +87,6 @@ npm run lint
 - El `README.md` lista el comando en la tabla y explica **por qué** existe si no
   es obvio.
 - Probado corriéndolo como subproceso real, igual que lo haría el CI — no
-  importando la función desde un test.
+  importando la función desde un test. Lo que toca disco, red o procesos se
+  prueba contra una keystore descartable y contra el server local, no con mocks
+  que confirman lo que uno ya creía.

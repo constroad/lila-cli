@@ -1,8 +1,9 @@
 # lila-cli
 
-La herramienta de línea de comandos de ConstRoad. Hoy hace una cosa —compilar,
-firmar y publicar un APK en [LilaStore](https://lilastore.constroad.com)— y está
-armada para que mañana haga más sin renombrar nada de lo de hoy.
+La herramienta de línea de comandos de ConstRoad. Hoy cubre el ciclo de vida de
+una app Android —la keystore con la que se firma, el build, y la publicación en
+[LilaStore](https://lilastore.constroad.com)— y está armada para que mañana haga
+más sin renombrar nada de lo de hoy.
 
 ```bash
 npx @constroad/lila-cli
@@ -99,13 +100,20 @@ lila                              menú interactivo
 lila login                        guarda el token
 lila whoami                       a qué app publica este token y cuándo vence
 
+lila keystore crear <app>         genera la keystore de producción
+lila keystore respaldar <app>     copia cifrada + verifica que restaure
+lila keystore verificar <app>     confirma que el respaldo sigue sirviendo
+lila keystore huella <app>        la huella sha256, para el alta en la consola
+
 lila apk build                    compila y firma
-lila apk check                    ¿el versionCode de app.json supera al publicado?
 lila apk publish [ruta]           sube; sin ruta busca en dist/
-lila apk promote <versionCode>    beta → producción
-lila apk withdraw <versionCode>   retira una release
-lila apk list                     qué versión hay en cada canal
 ```
+
+**Todavía no existen**, y se listan para que nadie los busque: `apk check`
+(¿el versionCode supera al vigente?, antes de compilar), `apk promote`, `apk
+withdraw` y `apk list`. Los tres últimos necesitan endpoints que el servidor no
+expone — son APIs que faltan, no comandos que falten acá. Lo mismo `whoami`, que
+hoy contesta a medias porque `GET /api/v1/token` no existe.
 
 Lo que venga después entra como área nueva sin tocar lo anterior: `lila torre
 deploy`, `lila auth keys`, `lila store devices`.
@@ -114,27 +122,74 @@ deploy`, `lila auth keys`, `lila store devices`.
 esta herramienta se usa cada dos semanas y nadie recuerda las banderas de algo
 que corrió por última vez hace quince días.
 
-### `apk publish` no pide banderas
+### `apk publish` no declara nada
 
-En un repo Expo, la versión, el `versionCode` y el `package` ya están en
-`app.json`. El CLI los lee de ahí.
+La versión, el `versionCode` y el `package` **los lee el servidor del
+`AndroidManifest.xml`** del binario que se sube. El CLI solo manda el archivo y
+el `sha256`.
 
-**No es comodidad, es una guarda.** El servidor de LilaStore **no parsea el
-`AndroidManifest`**: se cree lo que le declara el cliente, y solo verifica contra
-el binario el `sha256` y el certificado de firma. Con las banderas a mano se
-puede publicar un APK declarando `versionCode` 11 cuando el binario dice 10 — y
-nadie lo detecta. El teléfono instala, sigue reportando la versión vieja, y la
-tienda le ofrece actualizar para siempre. Que el número salga del mismo archivo
-que usó Gradle cierra esa puerta.
+Este apartado decía otra cosa hasta el 18/08/2026 —que el CLI los leyera de
+`app.json`— y esa solución no alcanzaba, por dos razones que aparecieron al
+implementarla:
 
-Las banderas siguen existiendo para pisar el valor cuando haga falta, pero el
-camino normal es no pasarlas.
+1. `app.json` **no tiene** `minSdk` ni `targetSdk`: los pone el `prebuild` de
+   Expo, en una carpeta que está gitignoreada.
+2. Un chequeo del lado del cliente lo saltea cualquiera que no use el cliente.
+   `curl` publicaba igual, declarando lo que quisiera.
 
-### `apk check` antes de compilar
+El agujero que cerraba era real: se podía publicar un APK que dice 10 declarando
+11, el teléfono instalaba, seguía reportando la vieja, y la tienda le ofrecía
+actualizar para siempre. Se cerró **en el servidor**, que ahora lee el manifest y
+rechaza con `422 metadata_no_coincide` si lo declarado no coincide.
 
-Pregunta si el `versionCode` que está por publicarse supera al vigente. Son
-veinte segundos que evitan enterarse **después** de quince minutos de Gradle de
-que ese número ya estaba tomado.
+Las banderas `--version`, `--version-code` y `--package` siguen aceptándose como
+chequeo cruzado, pero el camino normal es no pasarlas.
+
+### La keystore va primero, y no hace falta compilar para dar de alta
+
+El proceso se lee como un círculo —«necesito la huella para dar de alta, el APK
+para la huella, y el alta para publicar el APK»— y no lo es: **la huella sale de
+la keystore**, que se crea antes que todo lo demás.
+
+```bash
+lila keystore crear timon        # 1. el sello con el que se firma
+lila keystore respaldar timon    # 2. copia cifrada + verifica que restaure
+lila keystore huella timon       # 3. la huella, para pegarla en el alta
+#                                  4. dar de alta la app en /console/apps/new
+lila login                       # 5. el token de publicación
+lila apk build && lila apk publish   # 6.
+```
+
+**El token no va adentro del APK.** Es la credencial para *subir* a la tienda, no
+algo que la app use. Si viajara en el binario, cualquiera que lo descomprima
+podría publicar releases de esa app.
+
+**Un respaldo que nadie probó no es un respaldo.** `keystore respaldar` descifra
+lo que acaba de escribir y compara la huella del certificado restaurado contra la
+del original.
+
+### Las tres guardas del build
+
+Salen de errores que ya pasaron, no de una lista de buenas prácticas:
+
+1. **JDK 17.** Con el 21+ Gradle muere en CMake con «A restricted method in
+   java.lang.System has been called» — la restricción de acceso nativo de JDK 24
+   (JEP 472). Pasó el 18/08/2026 sin que nadie tocara nada: Android Studio
+   actualizó su JBR a 25. El JDK y el SDK **se resuelven acá**, no se heredan.
+2. **Firma de debug con `--firma=release` aborta.** Y si `apksigner` no puede
+   leer la firma, también: una guarda que no puede fallar es peor que no tenerla.
+3. **La URL de release tiene que estar adentro del binario.** Se comprueba que la
+   declarada **esté**, no que no estén `10.0.2.2` o `localhost`. La lista negra
+   parece lo obvio y **no sirve**: los dos APK de Timón que hoy andan en los
+   teléfonos contienen las tres cadenas, porque el dev-support de React Native se
+   empaqueta igual en release. Medido antes de creerlo.
+
+Por eso el repo de cada app declara su URL de release en `lila.json`, versionado
+y revisable en un PR:
+
+```json
+{ "build": { "env": { "EXPO_PUBLIC_API_URL": "https://www.constroad.com" } } }
+```
 
 ---
 
