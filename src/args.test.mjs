@@ -152,3 +152,31 @@ describe('los nombres son todos en inglés (v0.5.0)', () => {
     assert.deepEqual(opciones.copies, ['/a.enc', '/b.enc']);
   });
 });
+
+describe('--help y --version', () => {
+  // El mensaje de «sin argumentos» mandaba a usar «lila --help»… que caía en el
+  // mismo menú y volvía a fallar. Un CLI que recomienda un comando inexistente
+  // gasta el poco crédito que tiene justo cuando alguien está perdido.
+  test('--help pide la ayuda, no el menú', () => {
+    for (const bandera of ['--help', '-h']) {
+      assert.equal(parseArgs([bandera]).comando, 'ayuda', bandera);
+    }
+  });
+
+  test('--version pide la versión', () => {
+    for (const bandera of ['--version', '-v']) {
+      assert.equal(parseArgs([bandera]).comando, 'version', bandera);
+    }
+  });
+
+  // Saber qué versión estás corriendo importa MÁS cuando algo falla, y ahí no
+  // hay margen para escribir un comando de tres palabras.
+  test('ganan sobre cualquier otro comando', () => {
+    assert.equal(parseArgs(['apk', 'publish', '--version']).comando, 'version');
+    assert.equal(parseArgs(['keystore', 'create', 'x', '--help']).comando, 'ayuda');
+  });
+
+  test('sin argumentos sigue siendo el menú', () => {
+    assert.equal(parseArgs([]).comando, 'menu');
+  });
+});

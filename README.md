@@ -340,22 +340,33 @@ quedan fuera por el `!src/*.test.mjs` de `files`.
 
 ### Cómo se entera quien lo usa: **no se entera solo**
 
-No hay actualización automática, y es a propósito: todos los consumidores fijan
-la versión (`@constroad/lila-cli@0.5.2`), así que publicar en npm **no cambia
-nada** hasta que alguien sube ese número. Un CLI que se actualiza solo cambia
-cómo se compila un binario que va a treinta teléfonos, entre dos corridas del
-mismo comando y sin dejar diff.
+Depende de cómo lo invoques, y las tres formas se comportan distinto:
 
-Para leer qué hay publicado:
+| Cómo lo corrés | ¿Trae la nueva al publicar en npm? |
+| --- | --- |
+| `npx @constroad/lila-cli@0.6.0` (lo que usamos) | **No.** Nunca. Hay que subir el número. |
+| `npx @constroad/lila-cli` (sin versión) | Sí: npx resuelve `latest` en cada corrida. |
+| `npm i -g @constroad/lila-cli` | No, hasta un `npm update -g`. |
+
+**Todos nuestros consumidores fijan la versión**, así que publicar en npm no
+cambia nada hasta que alguien la sube en el repo. Es a propósito: un CLI que se
+actualiza solo cambia cómo se compila un binario que va a treinta teléfonos,
+entre dos corridas del mismo comando y sin dejar diff. El día que un release
+salga raro, la pregunta «¿con qué se compiló?» tiene que tener una respuesta que
+esté escrita en el repo.
+
+El precio es que hay que acordarse. Se compensa de tres formas:
 
 ```bash
-npm view @constroad/lila-cli version
+lila --version                       # qué estás corriendo
+npm view @constroad/lila-cli version # qué hay publicado
 ```
 
-`lila whoami` también lo comprueba y avisa cuando hay una más nueva — es el
-comando de «¿está todo bien?», ya hace red, y así el aviso llega sin que nadie
-tenga que acordarse de preguntar. Nunca falla por eso: si el registry no
-contesta, no dice nada.
+Y el CLI avisa solo en **dos momentos**: en `whoami` —el de «¿está todo bien?»,
+que ya hace red— y cuando **`apk publish` falla**, que es justo cuando importa
+saber si estás con una versión vieja y cuando nadie se acuerda de preguntarlo.
+En la publicación que sale bien no dice nada: sería ruido sobre algo que ya
+salió. Nunca falla por esto: si el registry no contesta, se calla.
 
 ### Después de publicar, subir la versión donde esté fijada
 

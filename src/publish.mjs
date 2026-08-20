@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { rojo, verde, aviso, tenue, mb } from './consola.mjs';
 import { tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
+import { avisarSiHayVersionNueva } from './actualizacion.mjs';
 
 /** Sin ruta, el APK más nuevo de `dist/`. Es lo que acaba de compilar `apk build`. */
 function buscarEnDist(carpeta = 'dist') {
@@ -175,7 +176,13 @@ export async function publish(opciones) {
   if (respuesta.status !== 201) {
     // El motivo EXACTO del server. Las validaciones existen para que quien
     // publica sepa qué arreglar sin abrir un log.
-    return rojo(`${respuesta.status} ${datos.codigo ?? ''} — ${datos.error ?? 'sin detalle'}`);
+    rojo(`${respuesta.status} ${datos.codigo ?? ''} — ${datos.error ?? 'sin detalle'}`);
+    // **El aviso de versión nueva va acá y no en el camino feliz.** Cuando algo
+    // falla es justo cuando importa saber si estás corriendo una versión vieja —
+    // y es el momento en que nadie se acuerda de preguntarlo. En una publicación
+    // que sale bien, la misma línea sería ruido antes de irse a hacer otra cosa.
+    await avisarSiHayVersionNueva();
+    return 1;
   }
 
   // La versión que se imprime es la que LEYÓ el server del binario, no la que

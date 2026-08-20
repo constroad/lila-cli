@@ -4,13 +4,10 @@
  * `whoami` existe por una razón concreta: **un token vencido tiene que
  * descubrirse antes de una compilación de quince minutos, no después.**
  */
-import { createRequire } from 'node:module';
 import { rojo, verde, tenue, aviso, preguntarOculto } from './consola.mjs';
 import { guardarToken, tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
-import { hayVersionMasNueva } from './version.mjs';
+import { avisarSiHayVersionNueva } from './actualizacion.mjs';
 
-/** La versión propia, del `package.json` de al lado. No se escribe a mano acá. */
-const VERSION = createRequire(import.meta.url)('../package.json').version;
 
 export async function login(opciones) {
   const base = opciones.url ?? URL_POR_DEFECTO;
@@ -52,39 +49,6 @@ export async function whoami(opciones) {
   imprimirQuien(quien);
   await avisarSiHayVersionNueva();
   return 0;
-}
-
-/**
- * «Hay una versión más nueva del CLI».
- *
- * Va en `whoami` y en ningún otro comando: es el de «¿está todo bien?», ya hace
- * red, y nadie lo corre en medio de una publicación. Meterlo en `apk publish`
- * sumaría una llamada al registry justo antes de subir 30 MB, para decir algo
- * que no cambia lo que va a pasar.
- *
- * **Nunca falla por esto.** Si el registry no contesta, o tarda, o devuelve algo
- * raro, no se dice nada: un `whoami` en rojo porque npm estaba lento haría dudar
- * del token, que es lo único que vino a comprobar.
- */
-async function avisarSiHayVersionNueva() {
-  const mia = VERSION;
-  try {
-    const control = new AbortController();
-    const corte = setTimeout(() => control.abort(), 2_000);
-    const r = await fetch('https://registry.npmjs.org/@constroad/lila-cli/latest', {
-      signal: control.signal,
-      headers: { accept: 'application/vnd.npm.install-v1+json' },
-    });
-    clearTimeout(corte);
-    if (!r.ok) return;
-    const { version } = await r.json();
-    if (hayVersionMasNueva(mia, version)) {
-      aviso(`Hay una versión más nueva del CLI: ${version} (tenés ${mia}).`);
-      console.log('  Las versiones van FIJAS: subila donde esté declarada (ver el README).');
-    }
-  } catch {
-    // Sin red, o npm lento. No es asunto de este comando.
-  }
 }
 
 function imprimirQuien(quien) {

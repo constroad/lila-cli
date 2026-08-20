@@ -14,12 +14,16 @@
  * negocio propias, hay dos sistemas que se contradicen y el síntoma aparece en
  * el teléfono de alguien.
  */
+import { createRequire } from 'node:module';
 import { parseArgs, USO } from '../src/args.mjs';
 import { crear, respaldar, verificar, huella } from '../src/keystore.mjs';
 import { build } from '../src/build.mjs';
 import { publish } from '../src/publish.mjs';
 import { login, whoami } from '../src/sesion.mjs';
 import { menu } from '../src/menu.mjs';
+
+/** La versión propia, del `package.json` de al lado. No se escribe a mano. */
+const VERSION = createRequire(import.meta.url)('../package.json').version;
 
 const { error, comando, opciones } = parseArgs(process.argv.slice(2));
 
@@ -30,6 +34,14 @@ if (error) {
 
 const comandos = {
   menu: () => menu(),
+  ayuda: () => {
+    console.log(USO);
+    return 0;
+  },
+  version: () => {
+    console.log(VERSION);
+    return 0;
+  },
   login: () => login(opciones),
   whoami: () => whoami(opciones),
   'keystore:create': () => crear(opciones.app, opciones),

@@ -84,6 +84,7 @@ const USO = `Uso:
 
 const error = (mensaje) => ({ error: `${mensaje}\n\n${USO}`, comando: undefined, opciones: undefined });
 
+
 /**
  * @param {string[]} argv argumentos después del name del programa
  */
@@ -107,6 +108,24 @@ export function parseArgs(argv) {
       return error(`--${clave} ahora se llama --${RENOMBRES[clave]}. El CLI es todo en inglés desde la 0.5.0.`);
     }
     banderas.set(clave, partes.length > 0 ? valor : true);
+  }
+
+  // **Antes que nada, y ganando sobre cualquier comando.** Saber qué versión
+  // estás corriendo importa MÁS cuando algo falla, y ahí no hay margen para
+  // escribir tres palabras. Además el mensaje de «sin argumentos» mandaba a
+  // «lila --help», que caía en el mismo menú y volvía a fallar — un CLI que
+  // recomienda un comando inexistente gasta el poco crédito que le queda.
+  // `-h` y `-v` con un solo guion: el parser solo mira `--`, así que caerían en
+  // los argumentos sueltos. Son las dos únicas formas cortas que existen —
+  // agregar más sería inventar un dialecto — y son las que todo el mundo tipea
+  // por costumbre antes de leer nada.
+  const cortas = new Set(argv.filter((a) => a === '-h' || a === '-v'));
+
+  if (banderas.has('version') || cortas.has('-v')) {
+    return { error: undefined, comando: 'version', opciones: {} };
+  }
+  if (banderas.has('help') || cortas.has('-h')) {
+    return { error: undefined, comando: 'ayuda', opciones: {} };
   }
 
   if (sueltos.length === 0) return { error: undefined, comando: 'menu', opciones: {} };
