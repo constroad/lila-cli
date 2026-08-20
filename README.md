@@ -378,7 +378,25 @@ saber si estás con una versión vieja y cuando nadie se acuerda de preguntarlo.
 En la publicación que sale bien no dice nada: sería ruido sobre algo que ya
 salió. Nunca falla por esto: si el registry no contesta, se calla.
 
-### Después de publicar, subir la versión donde esté fijada
+### Las tres versiones que se suben A MANO
+
+Ninguna es automática, y son de tres cosas distintas. Confundirlas es la fuente
+más común de «publiqué y no cambió nada»:
+
+| Qué | Dónde | Cuándo |
+| --- | --- | --- |
+| **La app** (Timón, LilaStore) | `app.json` del repo de la app: `expo.version` y `expo.android.versionCode` | Antes de compilar. Si el `versionCode` ya está publicado → `409 version_no_avanza` |
+| **Este CLI** | `package.json` de este repo | Antes de `npm publish` |
+| **El pin del CLI** | `scripts/build-apk.sh` de cada app y el workflow de Actions | Después de publicar el CLI, si querés que lo usen |
+
+Timón trae un atajo para la primera: `npm run release -- --bump=minor` edita las
+dos líneas de `app.json` y sigue. LilaStore no lo tiene; se edita a mano.
+
+`apk build` y `apk publish` **no tocan ninguna**: el server lee la versión del
+`AndroidManifest.xml` del binario, así que subir el número mal produce un APK que
+declara lo que declara, y nadie lo corrige por atrás.
+
+### Después de publicar, subir el pin donde esté fijado
 
 Solo donde reproduce. **La doc y el asistente de la consola no llevan número**,
 así que no hay que tocarlos — ese es el punto de no ponérselo.
