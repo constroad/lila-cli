@@ -37,13 +37,25 @@ usuario y no compraría nada.
 
 ## Instalación
 
-No hace falta instalarlo. En un runner o en una laptop:
+No hace falta instalarlo. **A mano, sin versión** — `npx` resuelve `latest` en
+cada corrida, así que siempre corrés lo último sin acordarte de nada:
 
 ```bash
 npx @constroad/lila-cli apk publish
 ```
 
-Para usarlo seguido, `npm i -g @constroad/lila-cli` y queda como `lila`.
+Para usarlo seguido, `npm i -g @constroad/lila-cli` y queda como `lila` (pero
+ojo: instalado global **no se actualiza solo**, hace falta `npm update -g`).
+
+**En un script de release o en CI va con la versión fija.** No es una
+incoherencia con lo de arriba, son dos necesidades distintas:
+
+| | Versión | Por qué |
+| --- | --- | --- |
+| A mano, la doc, el asistente de la consola | **sin fijar** | Un comando escrito con número envejece: instala una vieja y encima se ve autorizado. Nadie actualiza la doc en cada release. |
+| `scripts/build-apk.sh`, el workflow de Actions | **fija** | Un release tiene que poder repetirse dentro de un año y dar el mismo binario. Subirla deja un diff que alguien revisa. |
+
+**Lo que reproduce, fija; lo que enseña, no.**
 
 > **`npx` no funciona desde ESTE repo**, y no es un bug del paquete: adentro de
 > `lila-cli/` npx ve el `package.json` local que declara el bin `lila`, asume que
@@ -338,24 +350,22 @@ no menciona el scope. El scope es de **usuario**, no de organización.
 Antes de publicar, `npm pack --dry-run` muestra qué archivos entran. Los tests
 quedan fuera por el `!src/*.test.mjs` de `files`.
 
-### Cómo se entera quien lo usa: **no se entera solo**
+### Cómo se entera quien lo usa
 
-Depende de cómo lo invoques, y las tres formas se comportan distinto:
+Depende de cómo lo invoques, y por eso las dos formas conviven:
 
 | Cómo lo corrés | ¿Trae la nueva al publicar en npm? |
 | --- | --- |
-| `npx @constroad/lila-cli@0.6.0` (lo que usamos) | **No.** Nunca. Hay que subir el número. |
-| `npx @constroad/lila-cli` (sin versión) | Sí: npx resuelve `latest` en cada corrida. |
-| `npm i -g @constroad/lila-cli` | No, hasta un `npm update -g`. |
+| `npx @constroad/lila-cli` (a mano, la doc) | **Sí**, resuelve `latest` en cada corrida |
+| `npx @constroad/lila-cli@0.6.0` (scripts, CI) | **No.** Hay que subir el número |
+| `npm i -g @constroad/lila-cli` | No, hasta un `npm update -g` |
 
-**Todos nuestros consumidores fijan la versión**, así que publicar en npm no
-cambia nada hasta que alguien la sube en el repo. Es a propósito: un CLI que se
-actualiza solo cambia cómo se compila un binario que va a treinta teléfonos,
-entre dos corridas del mismo comando y sin dejar diff. El día que un release
-salga raro, la pregunta «¿con qué se compiló?» tiene que tener una respuesta que
-esté escrita en el repo.
+Que la automatización **no** se entere es el punto: un CLI que se actualiza solo
+cambia cómo se compila un binario que va a treinta teléfonos, entre dos corridas
+del mismo comando y sin dejar diff. El día que un release salga raro, la pregunta
+«¿con qué se compiló?» tiene que tener una respuesta escrita en el repo.
 
-El precio es que hay que acordarse. Se compensa de tres formas:
+Para saber qué hay y qué estás corriendo:
 
 ```bash
 lila --version                       # qué estás corriendo
@@ -370,13 +380,12 @@ salió. Nunca falla por esto: si el registry no contesta, se calla.
 
 ### Después de publicar, subir la versión donde esté fijada
 
-La versión se **fija**, nunca `@latest`: un release tiene que poder repetirse
-dentro de un año y dar el mismo resultado, y subirla deja un diff que alguien
-puede revisar. Hay que actualizarla en:
+Solo donde reproduce. **La doc y el asistente de la consola no llevan número**,
+así que no hay que tocarlos — ese es el punto de no ponérselo.
 
 - `lilastore-app/scripts/build-apk.sh` → `CLI_VERSION`
+- `timon/scripts/build-apk.sh` → `CLI_VERSION`
 - `timon/.github/workflows/release.yml` → los dos `npx @constroad/lila-cli@…`
-- el alias `lila` de `~/.zshrc`
 
 ---
 
