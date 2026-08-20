@@ -32,7 +32,7 @@ const BANDERAS = {
   'keystore:verificar': ['a'],
   'keystore:huella': [],
   'apk:build': ['abi', 'firma', 'salida'],
-  'apk:publish': ['channel', 'notes', 'critical', 'seco', 'url'],
+  'apk:publish': ['channel', 'notes', 'critical', 'obligar', 'seco', 'url'],
   login: ['url'],
   whoami: ['url'],
 };
@@ -52,7 +52,9 @@ const USO = `Uso:
   lila keystore huella <app>       la huella sha256, para el alta en la consola
 
   lila apk build                   compila y firma
-  lila apk publish [ruta.apk]      sube a LilaStore; sin ruta busca en dist/`;
+  lila apk publish [ruta.apk]      sube a LilaStore; sin ruta busca en dist/
+     --obligar                     la fija además como versión MÍNIMA:
+                                   quien tenga menos verá «actualizá»`;
 
 const error = (mensaje) => ({ error: `${mensaje}\n\n${USO}`, comando: undefined, opciones: undefined });
 
@@ -159,6 +161,7 @@ function apk(comando, ruta, banderas) {
       channel,
       notes: banderas.get('notes') ?? null,
       critical: banderas.get('critical') === true,
+      obligar: banderas.get('obligar') === true,
       seco: banderas.get('seco') === true,
       url: url ?? null,
     },

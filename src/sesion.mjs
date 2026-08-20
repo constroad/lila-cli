@@ -46,6 +46,11 @@ export async function whoami(opciones) {
 
 function imprimirQuien(quien) {
   console.log(`app    : ${quien.app}${quien.name ? ` (${quien.name})` : ''}`);
+  // El identificador público, para poder cruzarlo con la lista de
+  // /console/tokens. Es la mitad que no es secreta —viaja en cada publicación—
+  // y sin ella, con varios tokens vivos de la misma app, no hay forma de saber
+  // cuál tenés cargado ni cuál se puede revocar sin romper nada.
+  if (quien.publicId) console.log(`token  : lsp_${quien.publicId}…`);
   console.log(`repo   : ${quien.repo || '—'}`);
   console.log(`vence  : ${quien.vence}`);
   console.log(`uso    : ${quien.lastUsed ?? 'nunca'}`);
@@ -89,6 +94,9 @@ async function consultar(base, token) {
 
     return {
       ok: true,
+      // Puede faltar contra una LilaStore anterior al 19/08/2026: se imprime solo
+      // si vino, en vez de mostrar «lsp_undefined…».
+      publicId: datos.publicId ?? null,
       app: datos.app,
       name: datos.name,
       repo: datos.repo,

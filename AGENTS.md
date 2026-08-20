@@ -73,6 +73,44 @@ en /console/tokens» sí.
 Nunca se imprime el token, ni entero ni parcial: esta salida termina en el log de
 un runner que queda guardado.
 
+### Pedir algo por teclado
+
+Va contra **`/dev/tty` y en modo síncrono** (`leerDeLaTerminal`), nunca con
+`readline`. No es preferencia: el 19/08/2026 `lila login` salía con «Detected
+unsettled top-level await» sin leer nada — el `question()` de readline con
+`terminal: true` no disparaba su callback y además borraba el prompt con
+secuencias ANSI. Desde afuera parecía que el CLI no pedía nada.
+
+La forma final: **Node abre `/dev/tty` y maneja `stty`; un `sh` hijo hace la
+lectura bloqueante.** Lo que hay que conservar si se toca:
+
+- **Quien bloquea y quien escucha son procesos distintos.** Es lo que hace que
+  Ctrl-C funcione, y costó dos intentos fallidos:
+  1. `readSync` sobre el tty + handler de SIGINT en Node. `readSync` bloquea el
+     hilo y una señal no lo desbloquea, así que el handler no podía correr — y
+     tenerlo registrado le quitaba a SIGINT su efecto por defecto. **Ctrl-C no
+     hacía nada y la única salida era cerrar la terminal.**
+  2. Delegar en `sh` con `trap "stty echo" EXIT INT`. El `sh` muere con la señal,
+     pero el trap no devolvía el eco.
+  Con `sh` bloqueando, la señal lo mata a él, `execFileSync` devuelve el control
+  y recién ahí Node procesa la SIGINT. El handler existe **solo** para que Node no
+  se muera en ese instante; la limpieza la hace el `finally`.
+- **`/dev/tty`, no `stdin`.** El CLI se llama desde otros scripts con la entrada
+  redirigida (`build-apk.sh` de Timón); con `stdin` ahí no hay a quién preguntar.
+- **El valor vuelve por una tubería, nunca por argv.** Lo que va en argv lo ve
+  cualquiera con un `ps`, y acá lo que se lee es un token de publicación.
+- **Si no se puede apagar el eco, se aborta.** Seguir dejaría el token a la vista
+  en pantalla y en el scrollback.
+- **El eco se restaura antes de salir, también con Ctrl-C**, y se sale con 130.
+  Sin eso, cortar a medio pegar deja la terminal muda y nadie relaciona su shell
+  rota con el CLI de hace un rato.
+- **Entrada cerrada = error, no cadena vacía.** «No pegaste nada» sería mentira
+  cuando lo cierto es que nadie pudo pegar nada.
+
+Verificarlo necesita un pty (`script -q /dev/null …`), y **el pty de `script`
+arranca con el eco APAGADO**: hay que encenderlo a mano antes de medir, o toda
+medición da un falso «terminal muda».
+
 ## Comandos del repo
 
 ```bash

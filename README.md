@@ -242,6 +242,45 @@ es para cuando el CI está caído.
 
 ---
 
+## Publicar este CLI a npm
+
+Quien usa el CLI **nunca corre la copia de este repo**: corre la publicada. Es la
+misma versión que ejecuta el runner de GitHub Actions, y esa es toda la gracia —
+lo que probás en la laptop es lo que va a correr en CI. Un alias que apunte a
+`bin/lila.mjs` rompe esa garantía sin avisar.
+
+Una vez por máquina:
+
+```bash
+npm login
+```
+
+Cada release del CLI, con la versión ya subida en `package.json` y los tests en
+verde:
+
+```bash
+npm publish --access public
+```
+
+`--access public` no es opcional: un paquete con scope (`@constroad/…`) sale
+**privado por defecto**, y en una cuenta sin plan pago eso falla con un 402 que
+no menciona el scope. El scope es de **usuario**, no de organización.
+
+Antes de publicar, `npm pack --dry-run` muestra qué archivos entran. Los tests
+quedan fuera por el `!src/*.test.mjs` de `files`.
+
+### Después de publicar, subir la versión donde esté fijada
+
+La versión se **fija**, nunca `@latest`: un release tiene que poder repetirse
+dentro de un año y dar el mismo resultado, y subirla deja un diff que alguien
+puede revisar. Hay que actualizarla en:
+
+- `lilastore-app/scripts/build-apk.sh` → `CLI_VERSION`
+- `timon/.github/workflows/release.yml` → los dos `npx @constroad/lila-cli@…`
+- el alias `lila` de `~/.zshrc`
+
+---
+
 ## Referencias
 
 - Plan completo, con el orden de trabajo y los edge cases:

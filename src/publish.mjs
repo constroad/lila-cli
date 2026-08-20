@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
-import { rojo, verde, tenue, mb } from './consola.mjs';
+import { rojo, verde, aviso, tenue, mb } from './consola.mjs';
 import { tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
 
 /** Sin ruta, el APK más nuevo de `dist/`. Es lo que acaba de compilar `apk build`. */
@@ -66,6 +66,7 @@ export async function publish(opciones) {
   console.log('lila apk publish');
   console.log(`  archivo : ${basename(ruta)} (${mb(bytes.length)})`);
   console.log(`  channel : ${opciones.channel}`);
+  if (opciones.obligar) console.log('  obligar : sí — los teléfonos con menos verán «actualizá»');
   console.log(`  sha256  : ${sha256.slice(0, 16)}…`);
   console.log(`  destino : ${base}`);
   tenue(`  token   : ${origen}`);
@@ -75,6 +76,11 @@ export async function publish(opciones) {
     channel: opciones.channel,
     notes,
     critical: opciones.critical,
+    // Fijar la mínima en ESTA versión, en el mismo acto que la publicación.
+    // Reemplaza al `set-timon-min-version.ts` que corría después del build:
+    // dos pasos separados dejan el hueco de siempre —APK arriba, mínimo en la
+    // anterior— y quien lo sufre es el chofer que no se entera de actualizar.
+    obligar: opciones.obligar,
     // Trazabilidad: queda en la release y permite ver QUÉ corrida produjo un
     // binario que nadie reconoce.
     commitSha: process.env.GITHUB_SHA ?? null,
@@ -113,5 +119,18 @@ export async function publish(opciones) {
 
   // La versión que se imprime es la que LEYÓ el server del binario, no la que
   // alguien creyó estar subiendo. Es la confirmación de que son la misma cosa.
-  return verde(`Publicada ${datos.version} (${datos.versionCode}) · ${base}${datos.descarga}`);
+  verde(`Publicada ${datos.version} (${datos.versionCode}) · ${base}${datos.descarga}`);
+
+  // Se pidió obligar y el server dice que no quedó fijada. **Se avisa fuerte y
+  // NO se falla**: el binario está publicado y verificado, y salir con error
+  // haría pensar que no se subió nada. Lo que falta es un aviso, y hay que
+  // saberlo — si no, la flota se queda en la versión vieja sin que nadie note
+  // que el paso se perdió, que es exactamente cómo se rompió con el Drive.
+  if (opciones.obligar && datos.obligada !== true) {
+    console.error('');
+    aviso('Se publicó, pero NO quedó fijada como versión mínima.');
+    console.error('  Los teléfonos con una versión anterior no van a ver «actualizá».');
+    console.error(`  Fijala a mano en la consola: ${base}/console/apps`);
+  }
+  return 0;
 }
