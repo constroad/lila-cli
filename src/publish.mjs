@@ -66,10 +66,12 @@ function latido(bytes) {
 }
 
 export async function publish(opciones) {
-  const { token, origen } = tokenActual();
+  // El token se elige por la app de ESTE directorio: con Timón y LilaStore en
+  // la misma laptop, usar «el que haya» manda el de una a publicar la otra, y el
+  // server contesta el mismo 401 que daría un token vencido.
+  const { token, origen, motivo, aviso: avisoToken } = tokenActual();
   if (!token) {
-    rojo('No hay token de publicación.');
-    console.error('  Corré «lila login», o exportá LILASTORE_TOKEN.');
+    rojo(motivo);
     console.error('  Se crea en /console/tokens, y se muestra una sola vez.');
     return 1;
   }
@@ -116,6 +118,9 @@ export async function publish(opciones) {
   console.log(`  sha256  : ${sha256.slice(0, 16)}…`);
   console.log(`  destino : ${base}`);
   tenue(`  token   : ${origen}`);
+  // Antes de subir 30 MB, no después del 401: es el momento en que la duda
+  // todavía sale barata.
+  if (avisoToken) aviso(avisoToken);
 
   const metadata = {
     sha256,

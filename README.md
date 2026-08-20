@@ -94,6 +94,27 @@ keystore.
 
 **Un repo, un secret, una app.**
 
+### Varias apps en la misma máquina
+
+`lila login` guarda el token **bajo el nombre de la app**, no en un único
+espacio: tener Timón y LilaStore en la misma laptop ya no se pisan. Hasta la
+0.5.0 se guardaba uno solo y hacer login para una borraba en silencio el de la
+otra — y el fallo llegaba disfrazado, porque publicar con el token de otra app
+devuelve **el mismo `401` que un token vencido**. El server no los distingue a
+propósito, así que quien lo sufría creía que había caducado y generaba otro, que
+tampoco andaba.
+
+Cuál se usa lo decide el **directorio**: el CLI lee `expo.slug` de `app.json` y
+busca el de esa app. Por eso todos los comandos se corren dentro del repo.
+
+- Con la app conocida y sin token para ELLA, **no se cae al de otra**: lo dice y
+  nombra los que sí tenés.
+- Desde una carpeta cualquiera, si hay uno solo lo usa; si hay varios pide que
+  te pares en el repo o exportes `LILASTORE_TOKEN`.
+- Un token guardado con la 0.4.0 no tiene app conocida. Se conserva y se sigue
+  usando —borrarlo dejaría sin publicar a quien lo tenía andando— pero avisa que
+  no sabe de quién es.
+
 ---
 
 ## Comandos
@@ -278,6 +299,10 @@ misma versión que ejecuta el runner de GitHub Actions, y esa es toda la gracia 
 lo que probás en la laptop es lo que va a correr en CI. Un alias que apunte a
 `bin/lila.mjs` rompe esa garantía sin avisar.
 
+**Los dos comandos se corren en la raíz de ESTE repo** (`lila-cli/`), que es
+donde está el `package.json` que se publica. Desde otra carpeta, `npm publish`
+sube lo que sea que haya ahí.
+
 Una vez por máquina:
 
 ```bash
@@ -291,12 +316,38 @@ verde:
 npm publish --access public
 ```
 
+Con 2FA en la cuenta, npm pide el código del autenticador y **falla si no se lo
+pasás en el mismo comando** — no lo pregunta de forma interactiva:
+
+```bash
+npm publish --access public --otp=123456
+```
+
 `--access public` no es opcional: un paquete con scope (`@constroad/…`) sale
 **privado por defecto**, y en una cuenta sin plan pago eso falla con un 402 que
 no menciona el scope. El scope es de **usuario**, no de organización.
 
 Antes de publicar, `npm pack --dry-run` muestra qué archivos entran. Los tests
 quedan fuera por el `!src/*.test.mjs` de `files`.
+
+### Cómo se entera quien lo usa: **no se entera solo**
+
+No hay actualización automática, y es a propósito: todos los consumidores fijan
+la versión (`@constroad/lila-cli@0.5.1`), así que publicar en npm **no cambia
+nada** hasta que alguien sube ese número. Un CLI que se actualiza solo cambia
+cómo se compila un binario que va a treinta teléfonos, entre dos corridas del
+mismo comando y sin dejar diff.
+
+Para leer qué hay publicado:
+
+```bash
+npm view @constroad/lila-cli version
+```
+
+`lila whoami` también lo comprueba y avisa cuando hay una más nueva — es el
+comando de «¿está todo bien?», ya hace red, y así el aviso llega sin que nadie
+tenga que acordarse de preguntar. Nunca falla por eso: si el registry no
+contesta, no dice nada.
 
 ### Después de publicar, subir la versión donde esté fijada
 

@@ -111,6 +111,17 @@ Verificarlo necesita un pty (`script -q /dev/null …`), y **el pty de `script`
 arranca con el eco APAGADO**: hay que encenderlo a mano antes de medir, o toda
 medición da un falso «terminal muda».
 
+### El token se elige por el DIRECTORIO
+
+`lila login` guarda por app (`expo.slug` de `app.json`), no en un único espacio.
+Con la app conocida y sin token propio **no se cae al de otra**: publicar con el
+token equivocado devuelve el mismo `401` que un token vencido —el server no los
+distingue a propósito— así que el síntoma manda a generar un token nuevo que
+tampoco va a andar.
+
+La regla general: **cuando dos fallos distintos comparten mensaje, el CLI tiene
+que separarlos antes de llegar al server.**
+
 ## Comandos del repo
 
 ```bash

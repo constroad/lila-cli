@@ -4,8 +4,13 @@
  * `whoami` existe por una razón concreta: **un token vencido tiene que
  * descubrirse antes de una compilación de quince minutos, no después.**
  */
+import { createRequire } from 'node:module';
 import { rojo, verde, tenue, aviso, preguntarOculto } from './consola.mjs';
 import { guardarToken, tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
+import { hayVersionMasNueva } from './version.mjs';
+
+/** La versión propia, del `package.json` de al lado. No se escribe a mano acá. */
+const VERSION = createRequire(import.meta.url)('../package.json').version;
 
 export async function login(opciones) {
   const base = opciones.url ?? URL_POR_DEFECTO;
@@ -25,23 +30,61 @@ export async function login(opciones) {
   const quien = await consultar(base, token.trim());
   if (!quien.ok) return rojo(quien.mensaje);
 
-  const archivo = guardarToken(token.trim(), base);
-  verde(`Guardado en ${archivo}`);
+  // **Se guarda bajo la app que dijo el SERVER**, no bajo el directorio en el
+  // que estás parado. Es la única fuente que no puede equivocarse: el token
+  // lleva su app adentro, y guardarlo con otro nombre —porque hiciste login
+  // desde la carpeta equivocada— produciría exactamente el fallo que este
+  // cambio vino a arreglar.
+  const archivo = guardarToken(token.trim(), base, quien.app);
+  verde(`Guardado en ${archivo} para «${quien.app}»`);
   return imprimirQuien(quien);
 }
 
 export async function whoami(opciones) {
-  const { token, origen, url } = tokenActual();
-  if (!token) {
-    rojo('No hay token. Corré «lila login», o exportá LILASTORE_TOKEN.');
-    return 1;
-  }
+  const { token, origen, url, motivo, aviso: avisoToken } = tokenActual();
+  if (!token) return rojo(motivo);
   const base = opciones.url ?? url ?? URL_POR_DEFECTO;
   tenue(`token de ${origen}`);
+  if (avisoToken) aviso(avisoToken);
 
   const quien = await consultar(base, token);
   if (!quien.ok) return rojo(quien.mensaje);
-  return imprimirQuien(quien);
+  imprimirQuien(quien);
+  await avisarSiHayVersionNueva();
+  return 0;
+}
+
+/**
+ * «Hay una versión más nueva del CLI».
+ *
+ * Va en `whoami` y en ningún otro comando: es el de «¿está todo bien?», ya hace
+ * red, y nadie lo corre en medio de una publicación. Meterlo en `apk publish`
+ * sumaría una llamada al registry justo antes de subir 30 MB, para decir algo
+ * que no cambia lo que va a pasar.
+ *
+ * **Nunca falla por esto.** Si el registry no contesta, o tarda, o devuelve algo
+ * raro, no se dice nada: un `whoami` en rojo porque npm estaba lento haría dudar
+ * del token, que es lo único que vino a comprobar.
+ */
+async function avisarSiHayVersionNueva() {
+  const mia = VERSION;
+  try {
+    const control = new AbortController();
+    const corte = setTimeout(() => control.abort(), 2_000);
+    const r = await fetch('https://registry.npmjs.org/@constroad/lila-cli/latest', {
+      signal: control.signal,
+      headers: { accept: 'application/vnd.npm.install-v1+json' },
+    });
+    clearTimeout(corte);
+    if (!r.ok) return;
+    const { version } = await r.json();
+    if (hayVersionMasNueva(mia, version)) {
+      aviso(`Hay una versión más nueva del CLI: ${version} (tenés ${mia}).`);
+      console.log('  Las versiones van FIJAS: subila donde esté declarada (ver el README).');
+    }
+  } catch {
+    // Sin red, o npm lento. No es asunto de este comando.
+  }
 }
 
 function imprimirQuien(quien) {
