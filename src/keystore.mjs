@@ -103,7 +103,7 @@ function openssl(args, clave, salida) {
   };
 }
 
-export function crear(app, { claveGenerada }) {
+export function crear(app, { generatedKey }) {
   const keytool = buscarKeytool();
   if (!keytool) return rojo('No hay ningún JDK. Instalá Android Studio, o «brew install openjdk@17».');
 
@@ -119,7 +119,7 @@ export function crear(app, { claveGenerada }) {
   const comunes = ['-genkeypair', '-keystore', destino, '-alias', app,
     '-keyalg', 'RSA', '-keysize', '4096', '-validity', '10000'];
 
-  if (!claveGenerada) {
+  if (!generatedKey) {
     console.log(`Vas a crear la keystore de producción de «${app}».\n`);
     console.log('  · La contraseña la elegís vos y la guardás en tu gestor de contraseñas.');
     console.log('  · Perderla —o perder el archivo— obliga a desinstalar la app en CADA teléfono.');
@@ -232,7 +232,7 @@ export async function respaldar(app, opciones = {}) {
   const codigo = verificarCon(keytool, app, clave);
   if (codigo !== 0) return codigo;
 
-  const copias = copiarA(opciones.copias ?? [], cifrado);
+  const copias = copiarA(opciones.copies ?? [], cifrado);
   for (const destino of copias) {
     // Se verifica CADA copia, no se asume que copiar salió bien. Un archivo a
     // medias en un disco externo es exactamente el respaldo que falla el día que
@@ -269,7 +269,7 @@ export async function verificar(app, opciones = {}) {
   // Cada copia declarada, una por una. Que exista el archivo no alcanza: lo que
   // se comprueba es que RESTAURE la misma clave.
   let fallaron = 0;
-  for (const destino of opciones.copias ?? []) {
+  for (const destino of opciones.copies ?? []) {
     if (!existsSync(destino)) {
       rojo(`Falta la copia ${destino}`);
       fallaron += 1;

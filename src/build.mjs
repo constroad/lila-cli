@@ -193,7 +193,7 @@ export function build(opciones) {
     }
 
     const esDebug = /Android Debug/i.test(dn);
-    if (esDebug && opciones.firma === 'release') {
+    if (esDebug && opciones.signing === 'release') {
       rojo('Quedó firmado con DEBUG pese a pedir release.');
       console.error(`  ${dn.trim()}`);
       console.error(`  Declarás la keystore con: lila keystore crear ${slug}`);
@@ -211,8 +211,8 @@ export function build(opciones) {
   }
 
   console.log('4/4 Empaquetando…');
-  mkdirSync(opciones.salida, { recursive: true });
-  const destino = join(opciones.salida, `${slug}-${version}-${versionCode}.apk`);
+  mkdirSync(opciones.out, { recursive: true });
+  const destino = join(opciones.out, `${slug}-${version}-${versionCode}.apk`);
   copyFileSync(compilado, destino);
 
   const esperada = urlDeclarada(delRepo);

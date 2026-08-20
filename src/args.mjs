@@ -16,9 +16,31 @@
 
 export const AREAS = ['keystore', 'apk'];
 export const CHANNELS = ['stable', 'beta', 'legacy'];
-export const VERBOS_KEYSTORE = ['crear', 'respaldar', 'verificar', 'huella'];
+export const VERBOS_KEYSTORE = ['create', 'backup', 'verify', 'fingerprint'];
 export const VERBOS_APK = ['build', 'publish'];
 export const FIRMAS = ['release', 'debug'];
+
+/**
+ * Lo que se llamaba en español hasta la 0.4.0.
+ *
+ * **No es compatibilidad, es un mensaje.** Los nombres viejos NO funcionan; lo
+ * que hacen es decir cómo se llaman ahora. Un «no existe ese comando» a secas
+ * manda a leer el `--help` para descubrir que lo único que cambió es el idioma,
+ * y esos nombres están escritos en specs, en un README y en el historial de la
+ * terminal de quien los usó.
+ */
+const RENOMBRES = {
+  crear: 'create',
+  respaldar: 'backup',
+  verificar: 'verify',
+  huella: 'fingerprint',
+  obligar: 'enforce',
+  seco: 'dry-run',
+  firma: 'signing',
+  salida: 'out',
+  'clave-generada': 'generated-key',
+  a: 'to',
+};
 
 /** Las cuatro ABIs. `all` pesa el cuádruple y solo hace falta con teléfonos viejos. */
 const TODAS_LAS_ABI = 'armeabi-v7a,arm64-v8a,x86,x86_64';
@@ -26,35 +48,39 @@ const ABI_POR_DEFECTO = 'arm64-v8a';
 
 /** Qué banderas admite cada comando. Lo que no está acá, se rechaza. */
 const BANDERAS = {
-  'keystore:crear': ['clave-generada'],
-  // `--a` se puede repetir: cada una es una copia MÁS, fuera de esta máquina.
-  'keystore:respaldar': ['a'],
-  'keystore:verificar': ['a'],
-  'keystore:huella': [],
-  'apk:build': ['abi', 'firma', 'salida'],
-  'apk:publish': ['channel', 'notes', 'critical', 'obligar', 'seco', 'url'],
+  'keystore:create': ['generated-key'],
+  // `--to` se puede repetir: cada una es una copia MÁS, fuera de esta máquina.
+  'keystore:backup': ['to'],
+  'keystore:verify': ['to'],
+  'keystore:fingerprint': [],
+  'apk:build': ['abi', 'signing', 'out'],
+  'apk:publish': ['channel', 'notes', 'critical', 'enforce', 'dry-run', 'url'],
   login: ['url'],
   whoami: ['url'],
 };
 
 /** Las que son interruptores: `--critical` sin `=algo`. */
-const BOOLEANAS = new Set(['critical', 'seco', 'clave-generada']);
+const BOOLEANAS = new Set(['critical', 'dry-run', 'enforce', 'generated-key']);
 
 const USO = `Uso:
   lila                             menú interactivo
   lila login                       guarda el token de publicación
   lila whoami                      a qué app publica este token y cuándo vence
 
-  lila keystore crear <app>        genera la keystore de producción
-  lila keystore respaldar <app>    copia cifrada + verifica que restaure
-     --a=/ruta/otra/copia.enc      copia adicional; se puede repetir
-  lila keystore verificar <app>    confirma que TODAS las copias sirven
-  lila keystore huella <app>       la huella sha256, para el alta en la consola
+  lila keystore create <app>       genera la keystore de producción
+  lila keystore backup <app>       copia cifrada + verifica que restaure
+     --to=/ruta/otra/copia.enc     copia adicional; se puede repetir
+  lila keystore verify <app>       confirma que TODAS las copias sirven
+  lila keystore fingerprint <app>  la huella sha256, para el alta en la consola
 
   lila apk build                   compila y firma
+     --signing=release|debug       con qué se firma (release por defecto)
+     --abi=all                     las 4 arquitecturas; pesa el cuádruple
+     --out=dist                    dónde queda el APK
   lila apk publish [ruta.apk]      sube a LilaStore; sin ruta busca en dist/
-     --obligar                     la fija además como versión MÍNIMA:
-                                   quien tenga menos verá «actualizá»`;
+     --enforce                     la fija además como versión MÍNIMA:
+                                   quien tenga menos verá «actualizá»
+     --dry-run                     muestra qué se subiría, sin subir nada`;
 
 const error = (mensaje) => ({ error: `${mensaje}\n\n${USO}`, comando: undefined, opciones: undefined });
 
@@ -74,7 +100,12 @@ export function parseArgs(argv) {
     if (!BOOLEANAS.has(clave) && partes.length > 0 && valor === '') {
       return error(`--${clave} está vacía.`);
     }
-    if (clave === 'a') repetidas.push(valor);
+    if (clave === 'to') repetidas.push(valor);
+    // Antes de todo lo demás: una bandera renombrada se explica, no se lista
+    // como «no existe» entre otras diez.
+    if (RENOMBRES[clave]) {
+      return error(`--${clave} ahora se llama --${RENOMBRES[clave]}. El CLI es todo en inglés desde la 0.5.0.`);
+    }
     banderas.set(clave, partes.length > 0 ? valor : true);
   }
 
@@ -96,6 +127,9 @@ export function parseArgs(argv) {
 
   const verbo = resto[0];
   const verbos = primero === 'keystore' ? VERBOS_KEYSTORE : VERBOS_APK;
+  if (verbo && RENOMBRES[verbo]) {
+    return error(`«${verbo}» ahora se llama «${RENOMBRES[verbo]}». El CLI es todo en inglés desde la 0.5.0.`);
+  }
   if (!verbo || !verbos.includes(verbo)) {
     return error(`«${verbo ?? '(nada)'}» no es un comando de ${primero}. Los que hay: ${verbos.join(', ')}.`);
   }
@@ -114,32 +148,32 @@ export function parseArgs(argv) {
 function keystore(comando, app, banderas) {
   // No se adivina desde el directorio actual: una keystore creada con el name
   // equivocado no se puede deshacer sin desinstalar en todos los teléfonos.
-  if (!app) return error('Falta el nombre de la app. Ejemplo: lila keystore crear timon');
+  if (!app) return error('Falta el nombre de la app. Ejemplo: lila keystore create timon');
   return {
     error: undefined,
     comando,
     opciones: {
       app,
-      claveGenerada: banderas.get('clave-generada') === true,
-      copias: banderas.get('__copias') ?? [],
+      generatedKey: banderas.get('generated-key') === true,
+      copies: banderas.get('__copias') ?? [],
     },
   };
 }
 
 function apk(comando, ruta, banderas) {
   if (comando === 'apk:build') {
-    const firma = banderas.get('firma') ?? 'release';
-    if (!FIRMAS.includes(firma)) {
-      return error(`--firma tiene que ser una de: ${FIRMAS.join(', ')}.`);
+    const signing = banderas.get('signing') ?? 'release';
+    if (!FIRMAS.includes(signing)) {
+      return error(`--signing tiene que ser una de: ${FIRMAS.join(', ')}.`);
     }
     const abiPedida = banderas.get('abi') ?? ABI_POR_DEFECTO;
     return {
       error: undefined,
       comando,
       opciones: {
-        firma,
+        signing,
         abi: abiPedida === 'all' ? TODAS_LAS_ABI : abiPedida,
-        salida: banderas.get('salida') ?? 'dist',
+        out: banderas.get('out') ?? 'dist',
       },
     };
   }
@@ -161,8 +195,8 @@ function apk(comando, ruta, banderas) {
       channel,
       notes: banderas.get('notes') ?? null,
       critical: banderas.get('critical') === true,
-      obligar: banderas.get('obligar') === true,
-      seco: banderas.get('seco') === true,
+      enforce: banderas.get('enforce') === true,
+      dryRun: banderas.get('dry-run') === true,
       url: url ?? null,
     },
   };

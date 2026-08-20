@@ -12,10 +12,10 @@
 import { preguntar, rojo } from './consola.mjs';
 
 const OPCIONES = [
-  { etiqueta: 'Crear la keystore de una app', comando: 'keystore crear <app>', pideApp: true, clave: 'keystore:crear' },
-  { etiqueta: 'Respaldar una keystore', comando: 'keystore respaldar <app>', pideApp: true, clave: 'keystore:respaldar' },
-  { etiqueta: 'Verificar que un respaldo sirva', comando: 'keystore verificar <app>', pideApp: true, clave: 'keystore:verificar' },
-  { etiqueta: 'Ver la huella (para el alta en la consola)', comando: 'keystore huella <app>', pideApp: true, clave: 'keystore:huella' },
+  { etiqueta: 'Crear la keystore de una app', comando: 'keystore create <app>', pideApp: true, clave: 'keystore:create' },
+  { etiqueta: 'Respaldar una keystore', comando: 'keystore backup <app>', pideApp: true, clave: 'keystore:backup' },
+  { etiqueta: 'Verificar que un respaldo sirva', comando: 'keystore verify <app>', pideApp: true, clave: 'keystore:verify' },
+  { etiqueta: 'Ver la huella (para el alta en la consola)', comando: 'keystore fingerprint <app>', pideApp: true, clave: 'keystore:fingerprint' },
   { etiqueta: 'Compilar y firmar el APK', comando: 'apk build', pideApp: false, clave: 'apk:build' },
   { etiqueta: 'Publicar el APK en LilaStore', comando: 'apk publish', pideApp: false, clave: 'apk:publish' },
   { etiqueta: 'Guardar el token de publicación', comando: 'login', pideApp: false, clave: 'login' },

@@ -106,10 +106,10 @@ lila                              menú interactivo
 lila login                        guarda el token
 lila whoami                       a qué app publica este token y cuándo vence
 
-lila keystore crear <app>         genera la keystore de producción
-lila keystore respaldar <app>     copia cifrada + verifica que restaure
-lila keystore verificar <app>     confirma que el respaldo sigue sirviendo
-lila keystore huella <app>        la huella sha256, para el alta en la consola
+lila keystore create <app>         genera la keystore de producción
+lila keystore backup <app>     copia cifrada + verifica que restaure
+lila keystore verify <app>     confirma que el respaldo sigue sirviendo
+lila keystore fingerprint <app>        la huella sha256, para el alta en la consola
 
 lila apk build                    compila y firma
 lila apk publish [ruta]           sube; sin ruta busca en dist/
@@ -158,9 +158,9 @@ para la huella, y el alta para publicar el APK»— y no lo es: **la huella sale
 la keystore**, que se crea antes que todo lo demás.
 
 ```bash
-lila keystore crear timon        # 1. el sello con el que se firma
-lila keystore respaldar timon    # 2. copia cifrada + verifica que restaure
-lila keystore huella timon       # 3. la huella, para pegarla en el alta
+lila keystore create timon        # 1. el sello con el que se firma
+lila keystore backup timon    # 2. copia cifrada + verifica que restaure
+lila keystore fingerprint timon       # 3. la huella, para pegarla en el alta
 #                                  4. dar de alta la app en /console/apps/new
 lila login                       # 5. el token de publicación
 lila apk build && lila apk publish   # 6.
@@ -170,7 +170,7 @@ lila apk build && lila apk publish   # 6.
 algo que la app use. Si viajara en el binario, cualquiera que lo descomprima
 podría publicar releases de esa app.
 
-**Un respaldo que nadie probó no es un respaldo.** `keystore respaldar` descifra
+**Un respaldo que nadie probó no es un respaldo.** `keystore backup` descifra
 lo que acaba de escribir y compara la huella del certificado restaurado contra la
 del original.
 
@@ -180,8 +180,8 @@ repite, y **cada copia se verifica de verdad** — que el archivo exista no
 alcanza, se comprueba que restaure la misma clave.
 
 ```bash
-lila keystore respaldar timon --a=/Volumes/USB/timon.enc --a=~/Drive/timon.enc
-lila keystore verificar timon --a=/Volumes/USB/timon.enc   # ¿sigue sirviendo?
+lila keystore backup timon --to=/Volumes/USB/timon.enc --to=~/Drive/timon.enc
+lila keystore verify timon --to=/Volumes/USB/timon.enc   # ¿sigue sirviendo?
 ```
 
 Sin `--a`, el comando avisa que hay una sola copia. `verificar` sale con código 1
@@ -195,7 +195,7 @@ Salen de errores que ya pasaron, no de una lista de buenas prácticas:
    java.lang.System has been called» — la restricción de acceso nativo de JDK 24
    (JEP 472). Pasó el 18/08/2026 sin que nadie tocara nada: Android Studio
    actualizó su JBR a 25. El JDK y el SDK **se resuelven acá**, no se heredan.
-2. **Firma de debug con `--firma=release` aborta.** Y si `apksigner` no puede
+2. **Firma de debug con `--signing=release` aborta.** Y si `apksigner` no puede
    leer la firma, también: una guarda que no puede fallar es peor que no tenerla.
 3. **La URL de release tiene que estar adentro del binario.** Se comprueba que la
    declarada **esté**, no que no estén `10.0.2.2` o `localhost`. La lista negra
@@ -239,6 +239,35 @@ Android instalado, y así se queda.
 Cuando lo corrés vos desde tu máquina **es el mismo comando**: no es un segundo
 camino, es el mismo con otro operador. Actions es el operador normal; la laptop
 es para cuando el CI está caído.
+
+---
+
+## Los nombres son todos en inglés (0.5.0)
+
+Hasta la 0.4.0 el CLI mezclaba idiomas: `keystore crear` al lado de `apk build`,
+`--obligar` al lado de `--channel`. Quien lo usa tiene que acordarse de cuál
+palabra va en cuál idioma, y eso es memoria gastada en nada.
+
+| Antes | Ahora |
+| --- | --- |
+| `keystore crear` | `keystore create` |
+| `keystore respaldar` | `keystore backup` |
+| `keystore verificar` | `keystore verify` |
+| `keystore huella` | `keystore fingerprint` |
+| `--obligar` | `--enforce` |
+| `--seco` | `--dry-run` |
+| `--firma=` | `--signing=` |
+| `--salida=` | `--out=` |
+| `--a=` | `--to=` |
+| `--clave-generada` | `--generated-key` |
+
+Los nombres viejos **no funcionan**, pero tampoco dan «no existe» a secas:
+dicen cómo se llama ahora. Están escritos en specs, en este README y en el
+historial de la terminal de quien los usó, y un error genérico manda a leer el
+`--help` para descubrir que lo único que cambió es el idioma.
+
+Los **mensajes** siguen en español, como el resto del workspace. Lo que se
+unificó es la superficie que se teclea.
 
 ---
 

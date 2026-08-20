@@ -10,7 +10,7 @@
  * red: es lo que detecta una subida truncada.
  */
 import { readFile } from 'node:fs/promises';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { rojo, verde, aviso, tenue, mb } from './consola.mjs';
@@ -33,6 +33,38 @@ function buscarEnDist(carpeta = 'dist') {
   return apks.sort((a, b) => codigo(b) - codigo(a))[0];
 }
 
+/**
+ * «Sigue vivo», mientras dura la subida.
+ *
+ * En una terminal se reescribe la MISMA línea con `\r`. Fuera de una terminal
+ * —el log de un runner— se imprime una sola línea y nada más: un contador con
+ * `\r` en un log deja cientos de renglones que nadie puede leer.
+ */
+function latido(bytes) {
+  const desde = Date.now();
+  if (!process.stdout.isTTY) {
+    console.log(`  subiendo ${mb(bytes)}…`);
+    return { parar() {} };
+  }
+  const pintar = () => {
+    const seg = Math.round((Date.now() - desde) / 1000);
+    process.stdout.write(`\r  subiendo ${mb(bytes)}… ${seg}s`);
+  };
+  pintar();
+  const reloj = setInterval(pintar, 1000);
+  // `unref`: este intervalo no puede ser la razón por la que el proceso no
+  // termina si algo más falla.
+  reloj.unref?.();
+  return {
+    parar() {
+      clearInterval(reloj);
+      // Se borra la línea entera: dejar «subiendo… 47s» arriba del resultado se
+      // lee como si todavía estuviera subiendo.
+      process.stdout.write(`\r${' '.repeat(40)}\r`);
+    },
+  };
+}
+
 export async function publish(opciones) {
   const { token, origen } = tokenActual();
   if (!token) {
@@ -43,7 +75,21 @@ export async function publish(opciones) {
   }
 
   const ruta = opciones.apk ?? buscarEnDist();
-  if (!ruta) return rojo('No pasaste un APK y no encontré ninguno en dist/.');
+  if (!ruta) {
+    // **Dos fallos distintos con la misma cara.** «No encontré ninguno en dist/»
+    // suena a «compilá primero» aunque estés parado en ~/Downloads, y ahí no hay
+    // nada que compilar. Se distingue mirando si esto es siquiera el repo de una
+    // app: es el mismo `app.json` que exige `apk build`.
+    if (!existsSync('app.json')) {
+      rojo('Esta carpeta no es el repo de una app: no hay app.json.');
+      console.error(`  Estás en ${process.cwd()}`);
+      console.error('  Entrá al repo de la app y corré «lila apk build», o pasá la ruta del APK.');
+      return 1;
+    }
+    rojo('No hay ningún APK en dist/.');
+    console.error('  Compilalo primero con «lila apk build», o pasá la ruta a mano.');
+    return 1;
+  }
 
   let bytes;
   try {
@@ -66,7 +112,7 @@ export async function publish(opciones) {
   console.log('lila apk publish');
   console.log(`  archivo : ${basename(ruta)} (${mb(bytes.length)})`);
   console.log(`  channel : ${opciones.channel}`);
-  if (opciones.obligar) console.log('  obligar : sí — los teléfonos con menos verán «actualizá»');
+  if (opciones.enforce) console.log('  enforce : sí — los teléfonos con menos verán «actualizá»');
   console.log(`  sha256  : ${sha256.slice(0, 16)}…`);
   console.log(`  destino : ${base}`);
   tenue(`  token   : ${origen}`);
@@ -80,7 +126,7 @@ export async function publish(opciones) {
     // Reemplaza al `set-timon-min-version.ts` que corría después del build:
     // dos pasos separados dejan el hueco de siempre —APK arriba, mínimo en la
     // anterior— y quien lo sufre es el chofer que no se entera de actualizar.
-    obligar: opciones.obligar,
+    obligar: opciones.enforce,
     // Trazabilidad: queda en la release y permite ver QUÉ corrida produjo un
     // binario que nadie reconoce.
     commitSha: process.env.GITHUB_SHA ?? null,
@@ -90,8 +136,8 @@ export async function publish(opciones) {
         : null,
   };
 
-  if (opciones.seco) {
-    console.log(`\n(--seco) No se subió nada.\n${JSON.stringify(metadata, null, 2)}`);
+  if (opciones.dryRun) {
+    console.log(`\n(--dry-run) No se subió nada.\n${JSON.stringify(metadata, null, 2)}`);
     return 0;
   }
 
@@ -99,6 +145,14 @@ export async function publish(opciones) {
   cuerpo.append('apk', new Blob([bytes]), basename(ruta));
   cuerpo.append('metadata', JSON.stringify(metadata));
 
+  // **Subir 30 MB por datos móviles son minutos de silencio.** Sin ninguna
+  // señal, «tarda» es indistinguible de «se colgó», y quien lo mira corta con
+  // Ctrl-C a mitad — que es la única forma de que esto salga mal de verdad.
+  //
+  // No se inventa un porcentaje: `fetch` no expone bytes enviados y un número
+  // que no avanza miente peor que no tener ninguno. Se muestra el tiempo, que es
+  // cierto y alcanza para saber que sigue vivo.
+  const pulso = latido(bytes.length);
   let respuesta;
   try {
     respuesta = await fetch(`${base}/api/v1/releases`, {
@@ -107,8 +161,10 @@ export async function publish(opciones) {
       body: cuerpo,
     });
   } catch (fallo) {
+    pulso.parar();
     return rojo(`No se pudo contactar a ${base}: ${fallo.message}`);
   }
+  pulso.parar();
 
   const datos = await respuesta.json().catch(() => ({}));
   if (respuesta.status !== 201) {
@@ -126,7 +182,7 @@ export async function publish(opciones) {
   // haría pensar que no se subió nada. Lo que falta es un aviso, y hay que
   // saberlo — si no, la flota se queda en la versión vieja sin que nadie note
   // que el paso se perdió, que es exactamente cómo se rompió con el Drive.
-  if (opciones.obligar && datos.obligada !== true) {
+  if (opciones.enforce && datos.obligada !== true) {
     console.error('');
     aviso('Se publicó, pero NO quedó fijada como versión mínima.');
     console.error('  Los teléfonos con una versión anterior no van a ver «actualizá».');
