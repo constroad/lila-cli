@@ -1,7 +1,7 @@
 {
   "name": "@constroad/lila-cli",
-  "version": "0.5.1",
-  "description": "Keystores, builds y publicación de las apps Android de ConstRoad en LilaStore",
+  "version": "0.5.2",
+  "description": "Keystores, builds y publicaci\u00f3n de las apps Android de ConstRoad en LilaStore",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -17,7 +17,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test src/*.test.mjs"
+    "test": "node --test src/*.test.mjs",
+    "coverage": "node --test --experimental-test-coverage src/*.test.mjs"
   },
   "repository": {
     "type": "git",

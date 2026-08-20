@@ -238,6 +238,14 @@ y revisable en un PR:
 **`lila-cli` es un cliente de las APIs que ya existen. Nunca una segunda
 implementación.**
 
+Y la simétrica, que costó lo mismo: **un repo de app no reimplementa lo que hace
+el CLI.** El 20/08/2026 `lilastore-app` tenía 170 líneas y `timon` 294 haciendo
+lo mismo que `apk build` — elegir el JDK, correr Gradle, verificar la firma,
+buscar la URL en el bundle. Cada arreglo había que hacerlo tres veces, y cuando
+divergieron el resultado fue una publicación que se vio verde sin subir nada.
+Ahora los dos son envoltorios: llaman al CLI y le suman lo suyo (el `--bump` de
+Timón, a qué tienda subir). 464 líneas → 177.
+
 Un comando que hace algo que la consola no puede hacer es una API que falta, no
 lógica que vive acá. El día que el CLI tenga reglas de negocio propias hay dos
 sistemas que se contradicen, y el que pierde es el que no se está mirando.
@@ -333,7 +341,7 @@ quedan fuera por el `!src/*.test.mjs` de `files`.
 ### Cómo se entera quien lo usa: **no se entera solo**
 
 No hay actualización automática, y es a propósito: todos los consumidores fijan
-la versión (`@constroad/lila-cli@0.5.1`), así que publicar en npm **no cambia
+la versión (`@constroad/lila-cli@0.5.2`), así que publicar en npm **no cambia
 nada** hasta que alguien sube ese número. Un CLI que se actualiza solo cambia
 cómo se compila un binario que va a treinta teléfonos, entre dos corridas del
 mismo comando y sin dejar diff.

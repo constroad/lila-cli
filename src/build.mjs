@@ -30,6 +30,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, copyFileSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { rojo, verde, aviso, tenue, mb } from './consola.mjs';
+import { sirveAUnTelefono, urlsDeclaradas } from './urls.mjs';
 
 const JDK17 = '/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home';
 
@@ -141,6 +142,25 @@ export function build(opciones) {
   const delRepo = lila?.build?.env ?? {};
   for (const [clave, valor] of Object.entries(delRepo)) tenue(`${clave}=${valor}`);
 
+  // **Antes de compilar, no después.** Que una URL no le sirva a un teléfono se
+  // sabe leyendo `lila.json`; comprobarlo al final gasta dos minutos de Gradle
+  // para decir algo que ya se sabía al arrancar. Lo que SÍ hay que mirar al
+  // final es si quedó adentro del binario, y eso necesita el binario.
+  const declaradas = urlsDeclaradas(delRepo);
+  for (const [clave, url] of declaradas) {
+    if (!sirveAUnTelefono(url)) {
+      rojo(`${clave} no le sirve al teléfono de otra persona: ${url}`);
+      console.error('  Tiene que ser https y de un host público: ni localhost, ni una IP');
+      console.error('  privada, ni la Tailnet. Se declara en lila.json → build.env.');
+      console.error('  La Tailnet es la peligrosa: el build sale verde y el APK no sirve.');
+      return 1;
+    }
+  }
+  if (declaradas.length === 0) {
+    aviso('lila.json no declara ninguna URL: no puedo verificar a qué servidor apunta.');
+    aviso('  { "build": { "env": { "EXPO_PUBLIC_API_URL": "https://…" } } }');
+  }
+
   const entorno = {
     ...process.env,
     // Lo declarado en lila.json PISA al entorno: el `.env` de desarrollo es
@@ -215,34 +235,21 @@ export function build(opciones) {
   const destino = join(opciones.out, `${slug}-${version}-${versionCode}.apk`);
   copyFileSync(compilado, destino);
 
-  const esperada = urlDeclarada(delRepo);
-  if (!esperada) {
-    aviso('No puedo verificar a qué servidor apunta: lila.json no declara ninguna URL.');
-    aviso('  { "build": { "env": { "EXPO_PUBLIC_API_URL": "https://…" } } }');
-  } else if (!readFileSync(destino).includes(esperada)) {
-    rojo(`La URL de release no quedó adentro del APK: ${esperada}`);
-    console.error('  `EXPO_PUBLIC_*` se hornea al compilar. Un APK sin la URL buena se');
-    console.error('  instala perfecto y falla con «sin conexión» y el wifi funcionando.');
-    return 1;
-  } else {
-    verde(`Apunta a ${esperada}`);
+  // Lo que solo se puede saber mirando el artefacto: que la URL de verdad haya
+  // quedado horneada. TODAS las declaradas, no la primera — hasta el 20/08/2026
+  // se miraba una sola, y Timón declara dos.
+  const bytes = readFileSync(destino);
+  for (const [clave, url] of declaradas) {
+    if (!bytes.includes(url)) {
+      rojo(`${clave} no quedó adentro del APK: ${url}`);
+      console.error('  `EXPO_PUBLIC_*` se hornea al compilar. Un APK sin la URL buena se');
+      console.error('  instala perfecto y falla con «sin conexión» y el wifi funcionando.');
+      return 1;
+    }
+    verde(`${clave} → ${url}`);
   }
 
   verde(`${destino} · ${mb(statSync(destino).size)}`);
   console.log(`\nPara publicarlo:  lila apk publish ${destino}`);
   return 0;
-}
-
-/**
- * La URL que el repo declaró para release, si declaró alguna.
- *
- * Se busca entre las `EXPO_PUBLIC_*` porque son las que Expo hornea en el
- * bundle; una variable que no empiece así no llega al binario y comprobarla no
- * diría nada.
- */
-function urlDeclarada(env) {
-  for (const [clave, valor] of Object.entries(env)) {
-    if (clave.startsWith('EXPO_PUBLIC_') && /^https?:\/\//.test(String(valor))) return valor;
-  }
-  return null;
 }
