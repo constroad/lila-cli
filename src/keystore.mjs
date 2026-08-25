@@ -103,6 +103,47 @@ function openssl(args, clave, salida) {
   };
 }
 
+/**
+ * El nombre distinguido del certificado.
+ *
+ * **No es una decisión de quien crea la keystore**: es la identidad de la
+ * empresa, igual para todas las apps salvo el nombre. Que `keytool` lo pregunte
+ * es lo que produjo el bucle infinito del 24/08/2026 — dejando todo en blanco,
+ * la confirmación por defecto es «no» y vuelve a preguntar, sin salida.
+ *
+ * Las comas se quitan porque separan los componentes del DN: una en el nombre
+ * de la app lo parte en dos y `keytool` falla con un error de sintaxis que no
+ * dice de dónde viene.
+ */
+export const dnameDe = (app) =>
+  `CN=${String(app).replace(/,/g, '')}, OU=movil, O=ConstRoad, L=Lima, ST=Lima, C=PE`;
+
+/**
+ * Los argumentos de `keytool`, en una función para poder probarlos.
+ *
+ * 4096 y no 2048: es una clave que va a vivir 27 años y firmar todo lo que se
+ * instale en los teléfonos de la empresa. El costo son milisegundos por build.
+ *
+ * `-dname` va en LOS DOS caminos. La diferencia entre ellos es solo de dónde
+ * sale la contraseña: en el interactivo la escribe la persona, así que no puede
+ * ir por entorno.
+ */
+export function argumentosDeCreacion({ destino, app, generatedKey }) {
+  const comunes = [
+    '-genkeypair',
+    '-keystore', destino,
+    '-alias', app,
+    '-keyalg', 'RSA',
+    '-keysize', '4096',
+    '-validity', '10000',
+    '-dname', dnameDe(app),
+  ];
+
+  return generatedKey
+    ? [...comunes, '-storepass:env', 'LILA_KS', '-keypass:env', 'LILA_KS']
+    : [...comunes, '-v'];
+}
+
 export function crear(app, { generatedKey }) {
   const keytool = buscarKeytool();
   if (!keytool) return rojo('No hay ningún JDK. Instalá Android Studio, o «brew install openjdk@17».');
@@ -114,17 +155,16 @@ export function crear(app, { generatedKey }) {
   }
   mkdirSync(RAIZ, { recursive: true });
 
-  // 4096 y no 2048: es una clave que va a vivir 27 años y firmar todo lo que se
-  // instale en los teléfonos de la empresa. El costo son milisegundos por build.
-  const comunes = ['-genkeypair', '-keystore', destino, '-alias', app,
-    '-keyalg', 'RSA', '-keysize', '4096', '-validity', '10000'];
-
   if (!generatedKey) {
     console.log(`Vas a crear la keystore de producción de «${app}».\n`);
     console.log('  · La contraseña la elegís vos y la guardás en tu gestor de contraseñas.');
+    console.log('  · Te la va a pedir DOS veces, y no se ve mientras la escribís.');
     console.log('  · Perderla —o perder el archivo— obliga a desinstalar la app en CADA teléfono.');
-    console.log(`  · Cuando termine, corré: lila keystore respaldar ${app}\n`);
-    const salida = spawnSync(keytool, [...comunes, '-v'], { stdio: 'inherit' });
+    console.log(`  · Cuando termine, corré: lila keystore backup ${app}\n`);
+    console.log(`Los datos del certificado NO se preguntan: ${dnameDe(app)}\n`);
+    const salida = spawnSync(keytool, argumentosDeCreacion({ destino, app, generatedKey: false }), {
+      stdio: 'inherit',
+    });
     if (salida.status !== 0) return rojo('keytool falló.');
     chmodSync(destino, 0o600);
     verde(`Creada: ${destino}`);
@@ -138,11 +178,10 @@ export function crear(app, { generatedKey }) {
   // eso el respaldo corre a continuación y no «después».
   const clave = randomBytes(32).toString('base64');
   console.log(`Creando la keystore de «${app}» con una contraseña generada al azar.`);
-  const salida = spawnSync(keytool, [
-    ...comunes,
-    '-storepass:env', 'LILA_KS', '-keypass:env', 'LILA_KS',
-    '-dname', `CN=${app}, OU=movil, O=ConstRoad, L=Lima, ST=Lima, C=PE`,
-  ], { env: { ...process.env, LILA_KS: clave }, stdio: 'inherit' });
+  const salida = spawnSync(keytool, argumentosDeCreacion({ destino, app, generatedKey: true }), {
+    env: { ...process.env, LILA_KS: clave },
+    stdio: 'inherit',
+  });
   if (salida.status !== 0) return rojo('keytool falló.');
 
   chmodSync(destino, 0o600);
