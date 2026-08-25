@@ -68,6 +68,9 @@ const USO = `Uso:
   lila whoami                      a qué app publica este token y cuándo vence
 
   lila keystore create <app>       genera la keystore de producción
+     --generated-key               la contraseña la genera el CLI y la deja en
+                                   gradle.properties; no te pide nada y hace
+                                   el respaldo solo. Recomendado.
   lila keystore backup <app>       copia cifrada + verifica que restaure
      --to=/ruta/otra/copia.enc     copia adicional; se puede repetir
   lila keystore verify <app>       confirma que TODAS las copias sirven
