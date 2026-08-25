@@ -19,6 +19,7 @@ import { parseArgs, USO } from '../src/args.mjs';
 import { crear, respaldar, verificar, huella } from '../src/keystore.mjs';
 import { build } from '../src/build.mjs';
 import { publish } from '../src/publish.mjs';
+import { subirIcono } from '../src/icono.mjs';
 import { login, whoami } from '../src/sesion.mjs';
 import { menu } from '../src/menu.mjs';
 
@@ -50,6 +51,7 @@ const comandos = {
   'keystore:fingerprint': () => huella(opciones.app),
   'apk:build': () => build(opciones),
   'apk:publish': () => publish(opciones),
+  'app:icon': () => subirIcono(opciones.app, opciones.archivo, opciones),
 };
 
 const ejecutar = comandos[comando];

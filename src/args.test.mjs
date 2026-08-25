@@ -207,3 +207,40 @@ describe('los comandos sueltos', () => {
     assert.ok(parseArgs(['inventado']).error);
   });
 });
+
+/**
+ * `lila app icon` — el área que faltaba.
+ *
+ * Nace del 25/08/2026: `lilastore` y `lilachat` estaban sin ícono en la consola
+ * porque el único camino para cargarlo era un formulario web que hay que
+ * acordarse de usar. Es área propia y no `apk icon` a propósito: el ícono es de
+ * la APP, y `apk icon` sugeriría que se saca del binario — que es justo lo que
+ * no pasa.
+ */
+describe('lila app icon', () => {
+  it('toma el slug y el archivo por posición', () => {
+    const salida = parseArgs(['app', 'icon', 'lilachat', 'assets/store-icon.png']);
+    expect(salida.error).toBeUndefined();
+    expect(salida.comando).toBe('app:icon');
+    expect(salida.opciones.app).toBe('lilachat');
+    expect(salida.opciones.archivo).toBe('assets/store-icon.png');
+  });
+
+  it('acepta apuntar a otra instancia', () => {
+    const salida = parseArgs(['app', 'icon', 'x', 'a.png', '--url=https://otra.test']);
+    expect(salida.opciones.url).toBe('https://otra.test');
+  });
+
+  it('una url que no es url se rechaza', () => {
+    expect(parseArgs(['app', 'icon', 'x', 'a.png', '--url=pepe']).error).toMatch(/http/);
+  });
+
+  /** Un verbo inventado nombra los que sí existen, en vez de tirar el uso pelado. */
+  it('un verbo que no existe dice cuáles hay', () => {
+    expect(parseArgs(['app', 'borrar']).error).toMatch(/icon/);
+  });
+
+  it('sin verbo también', () => {
+    expect(parseArgs(['app']).error).toMatch(/icon/);
+  });
+});

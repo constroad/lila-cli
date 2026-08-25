@@ -131,6 +131,26 @@ busca el de esa app. Por eso todos los comandos se corren dentro del repo.
 
 ## Comandos
 
+### `lila app icon <slug> <archivo.png>`
+
+Sube el ícono de una app a LilaStore, con el MISMO token que publica sus
+releases.
+
+```bash
+lila app icon lilachat assets/store-icon.png
+```
+
+Existe porque el ícono era el único dato de la ficha que solo se cargaba a mano
+desde la consola web — y por eso `lilastore` y `lilachat` estuvieron sin ícono
+desde que se dieron de alta. Un paso manual que hay que recordar, en la práctica,
+no se hace, y menos desde un runner.
+
+- PNG, hasta 512 KB. Se mira el CONTENIDO, no la extensión.
+- 512×512 es lo recomendado.
+- El token decide sobre qué app se aplica: uno de `lilachat` no le cambia el
+  ícono a `lilastore` aunque el slug de la URL diga otra cosa.
+
+
 Sustantivo y después verbo. No es estética: es lo que permite sumar un área nueva
 sin renombrar lo que ya existe.
 

@@ -14,7 +14,7 @@
  *    canal equivocado.
  */
 
-export const AREAS = ['keystore', 'apk'];
+export const AREAS = ['keystore', 'apk', 'app'];
 export const CHANNELS = ['stable', 'beta', 'legacy'];
 export const VERBOS_KEYSTORE = ['create', 'backup', 'verify', 'fingerprint'];
 export const VERBOS_APK = ['build', 'publish'];
@@ -55,6 +55,7 @@ const BANDERAS = {
   'keystore:fingerprint': [],
   'apk:build': ['abi', 'signing', 'out'],
   'apk:publish': ['channel', 'notes', 'critical', 'enforce', 'dry-run', 'url'],
+  'app:icon': ['url'],
   login: ['url'],
   whoami: ['url'],
 };
@@ -75,6 +76,9 @@ const USO = `Uso:
      --to=/ruta/otra/copia.enc     copia adicional; se puede repetir
   lila keystore verify <app>       confirma que TODAS las copias sirven
   lila keystore fingerprint <app>  la huella sha256, para el alta en la consola
+
+  lila app icon <slug> <a.png>     sube el ícono de la app a la tienda
+     --url=https://…               otra instancia de LilaStore
 
   lila apk build                   compila y firma
      --signing=release|debug       con qué se firma (release por defecto)
@@ -155,6 +159,27 @@ export function parseArgs(argv) {
 
   if (!AREAS.includes(primero)) {
     return error(`No existe el área «${primero}». Las que hay: ${AREAS.join(', ')}.`);
+  }
+
+  /**
+   * `lila app icon <slug> <archivo.png>`.
+   *
+   * Área propia y no `apk icon`: el ícono es de la APP, no de un binario. Un
+   * `apk icon` sugeriría que sale del APK, que es justo lo que NO pasa.
+   */
+  if (primero === 'app') {
+    if (resto[0] !== 'icon') {
+      return error(`«${resto[0] ?? '(nada)'}» no es un comando de app. Los que hay: icon.`);
+    }
+    const malas = validarBanderas('app:icon', banderas);
+    if (malas) return error(malas);
+    const url = banderas.get('url');
+    if (url !== undefined && !esUrl(url)) return error('--url tiene que ser http:// o https://');
+    return {
+      error: undefined,
+      comando: 'app:icon',
+      opciones: { app: resto[1], archivo: resto[2], url: url ?? null },
+    };
   }
 
   const verbo = resto[0];
