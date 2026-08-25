@@ -284,7 +284,7 @@ export async function respaldar(app, opciones = {}) {
   if (copias.length === 0) {
     aviso('Hay UNA sola copia, y está en el mismo disco que el original.');
     console.log('   Un disco que se rompe se lleva las dos. Agregá al menos una:');
-    console.log(`     lila keystore respaldar ${app} --a=/Volumes/USB/${app}.enc`);
+    console.log(`     lila keystore backup ${app} --to=/Volumes/USB/${app}.enc`);
   } else {
     verde(`${copias.length + 1} copias, todas verificadas.`);
     aviso('Que al menos una esté fuera de esta computadora.');

@@ -191,12 +191,47 @@ para la huella, y el alta para publicar el APK»— y no lo es: **la huella sale
 la keystore**, que se crea antes que todo lo demás.
 
 ```bash
-lila keystore create timon        # 1. el sello con el que se firma
-lila keystore backup timon    # 2. copia cifrada + verifica que restaure
-lila keystore fingerprint timon       # 3. la huella, para pegarla en el alta
-#                                  4. dar de alta la app en /console/apps/new
-lila login                       # 5. el token de publicación
-lila apk build && lila apk publish   # 6.
+lila keystore create timon --generated-key   # 1. el sello con el que se firma
+lila keystore fingerprint timon              # 2. la huella, para el alta
+#                                              3. dar de alta en /console/apps/new
+lila login                                   # 4. el token de publicación
+lila apk build && lila apk publish           # 5.
+```
+
+**Usá `--generated-key`.** Genera una contraseña de 32 bytes al azar, la deja en
+`~/.gradle/gradle.properties` para que Gradle la lea sola, **y hace el respaldo a
+continuación** — por eso el paso de `backup` no aparece arriba: ya corrió. Sin la
+bandera, la contraseña la escribís vos y el respaldo queda pendiente.
+
+Los datos del certificado —nombre, organización, ciudad— **no se preguntan**:
+son la identidad de la empresa y salen de una constante. Hasta la 0.6.0 el
+camino interactivo dejaba que `keytool` los pidiera, y con todo en blanco su
+confirmación por defecto es «no»: volvía a preguntar **para siempre**, sin más
+salida que Ctrl-C.
+
+### El paso que falta en casi todas las apps: la firma de release
+
+`android/` lo regenera `expo prebuild`, y su plantilla deja
+`release { signingConfig signingConfigs.debug }`. O sea que **declarar la
+keystore en `gradle.properties` no alcanza**: el APK sale firmado con la de
+debug, se instala perfecto, y el problema aparece el día del primer release de
+verdad — Android rechaza la actualización y hay que desinstalar en todos los
+teléfonos.
+
+La solución es un plugin de Expo que reescribe ese bloque en cada prebuild.
+Copiá `plugins/withReleaseSigning.js` de LilaStore o de Lilachat, cambiá el
+prefijo, y agregalo a `plugins` en `app.json`. `lila apk build` verifica la firma
+antes de empaquetar y **se niega a seguir** si quedó la de debug: esa guarda
+existe porque este error no se ve mirando el APK.
+
+### La versión vive en `app.json`
+
+`expo.version` y `expo.android.versionCode`. Editar `android/app/build.gradle`
+**no cambia nada** —`prebuild` lo regenera— y el APK sale con la versión vieja
+aunque el nombre del archivo diga otra. Antes de publicar:
+
+```bash
+aapt2 dump badging dist/<app>-<version>-<code>.apk | head -1
 ```
 
 **El token no va adentro del APK.** Es la credencial para *subir* a la tienda, no

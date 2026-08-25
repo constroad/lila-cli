@@ -216,7 +216,12 @@ export function build(opciones) {
     if (esDebug && opciones.signing === 'release') {
       rojo('Quedó firmado con DEBUG pese a pedir release.');
       console.error(`  ${dn.trim()}`);
-      console.error(`  Declarás la keystore con: lila keystore crear ${slug}`);
+      // El mensaje NOMBRA las dos causas posibles: falta la keystore, o está
+      // pero el plugin de firma no reescribió el gradle que `prebuild`
+      // regenera. La segunda es la que confunde — la keystore existe y el APK
+      // igual sale firmado con debug.
+      console.error(`  Si no existe:  lila keystore create ${slug} --generated-key`);
+      console.error(`  Si ya existe:  falta el plugin plugins/withReleaseSigning.js en app.json`);
       return 1;
     }
     if (esDebug) {
