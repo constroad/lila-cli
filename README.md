@@ -194,9 +194,21 @@ la keystore**, que se crea antes que todo lo demás.
 lila keystore create timon --generated-key   # 1. el sello con el que se firma
 lila keystore fingerprint timon              # 2. la huella, para el alta
 #                                              3. dar de alta en /console/apps/new
-lila login                                   # 4. el token de publicación
+lila login                                   # 4. el token (o LILASTORE_TOKEN)
 lila apk build && lila apk publish           # 5.
 ```
+
+**`login` necesita una terminal de verdad** y no se puede automatizar: en CI, en
+un script o desde un asistente, el token va por entorno.
+
+```bash
+export LILASTORE_TOKEN=lsp_…      # equivale a haber hecho login
+lila whoami                        # confirma A QUÉ APP publica ese token
+```
+
+`whoami` antes de publicar no es ceremonia: un token identifica **una** app, y
+subir el APK de una con el token de otra falla con `409 firmante_distinto` —un
+mensaje que habla de firmas cuando el problema es el token—. Pasó el 24/08/2026.
 
 **Usá `--generated-key`.** Genera una contraseña de 32 bytes al azar, la deja en
 `~/.gradle/gradle.properties` para que Gradle la lea sola, **y hace el respaldo a

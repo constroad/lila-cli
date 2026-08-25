@@ -135,6 +135,16 @@ export function parseArgs(argv) {
 
   const [primero, ...resto] = sueltos;
 
+  /**
+   * Los comandos sin área. `ayuda` y `version` estaban implementados en
+   * `bin/lila.mjs` pero el parser no los dejaba pasar: `lila ayuda` contestaba
+   * «No existe el área «ayuda»» —contradiciendo al propio texto de uso que
+   * imprime—. Se vio probando el CLI publicado.
+   */
+  if (primero === 'ayuda' || primero === 'version') {
+    return { error: undefined, comando: primero, opciones: {} };
+  }
+
   if (primero === 'login' || primero === 'whoami') {
     const malas = validarBanderas(primero, banderas);
     if (malas) return error(malas);

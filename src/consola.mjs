@@ -58,7 +58,22 @@ function leerDeLaTerminal(prompt, { oculto }) {
     // dos, el prompt puede salir después de la respuesta por el buffer de salida.
     fd = openSync('/dev/tty', 'r+');
   } catch {
-    throw new Error(`Hace falta ${prompt.toLowerCase()} y no hay terminal para pedirla.`);
+    // El mensaje NO interpola el prompt: es un imperativo («Pegá el token») y
+    // metido en un hueco de sustantivo daba «Hace falta pegá el token y no hay
+    // terminal para pedirla». Además dice la SALIDA, que es lo que hace falta
+    // cuando esto pasa: en CI o en un script no hay terminal, y el token va por
+    // variable de entorno.
+    // Se NOMBRA lo que se estaba pidiendo —en medio de un build largo, «no hay
+    // terminal» a secas no dice cuál de los prompts fue— pero entre comillas y
+    // no interpolado en la frase: «Hace falta pegá el token y no hay terminal
+    // para pedirla» era lo que salía antes, con el imperativo metido en un
+    // hueco de sustantivo.
+    //
+    // Y se dice la SALIDA, que es lo que hace falta cuando esto pasa.
+    throw new Error(
+      `No se pudo pedir «${prompt}»: este paso necesita una terminal y acá no hay.\n` +
+        '  En CI o en un script, pasá el token por entorno: LILASTORE_TOKEN=lsp_…'
+    );
   }
 
   const stty = (args) =>

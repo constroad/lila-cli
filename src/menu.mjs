@@ -25,7 +25,7 @@ export async function menu() {
   if (!process.stdin.isTTY) {
     // Sin terminal —un runner, un pipe— el menú no tiene sentido y quedarse
     // esperando una respuesta que no va a llegar cuelga el job.
-    return rojo('`lila` sin argumentos abre un menú, y acá no hay terminal. Usá «lila --help».');
+    return rojo('`lila` sin argumentos abre un menú, y acá no hay terminal. Usá «lila ayuda».');
   }
 
   console.log('\nlila — apps Android de ConstRoad\n');

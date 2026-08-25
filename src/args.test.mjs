@@ -180,3 +180,30 @@ describe('--help y --version', () => {
     assert.equal(parseArgs([]).comando, 'menu');
   });
 });
+
+describe('los comandos sueltos', () => {
+  /**
+   * `ayuda` y `version` están implementados en `bin/lila.mjs` pero el parser
+   * solo dejaba pasar `login`, `whoami` y las dos áreas — así que `lila ayuda`
+   * contestaba «No existe el área «ayuda»», que además contradice al propio
+   * texto de uso. Encontrado probando el CLI publicado (24/08/2026).
+   */
+  test('ayuda se acepta', () => {
+    assert.equal(parseArgs(['ayuda']).comando, 'ayuda');
+    assert.equal(parseArgs(['ayuda']).error, undefined);
+  });
+
+  test('version se acepta', () => {
+    assert.equal(parseArgs(['version']).comando, 'version');
+  });
+
+  /** Sin argumentos sigue siendo el menú, que es lo que documenta el uso. */
+  test('sin argumentos, el menú', () => {
+    assert.equal(parseArgs([]).comando, 'menu');
+  });
+
+  /** Lo que no existe SIGUE rechazándose: la lista es cerrada. */
+  test('un comando inventado se rechaza', () => {
+    assert.ok(parseArgs(['inventado']).error);
+  });
+});

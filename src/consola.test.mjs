@@ -30,6 +30,9 @@ test('sin terminal, preguntarOculto rechaza en vez de colgarse', SIN_TERMINAL, a
     // El mensaje nombra QUÉ se estaba pidiendo. «No hay terminal» a secas, en
     // medio de un build de quince minutos, no dice cuál de los tres prompts fue.
     assert.match(fallo.message, /pegá el token/i);
+    // Y dice la salida: sin esto, en CI el mensaje describe el problema y deja
+    // a quien lo lee sin saber qué hacer.
+    assert.match(fallo.message, /LILASTORE_TOKEN/);
     return true;
   });
 });
