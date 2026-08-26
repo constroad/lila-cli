@@ -480,3 +480,16 @@ así que no hay que tocarlos — ese es el punto de no ponérselo.
   [`lilastore/specs/PLAN-PUBLICACION.spec.md`](https://github.com/constroad/lilastore/blob/main/specs/PLAN-PUBLICACION.spec.md)
 - API de publicación: `lilastore/specs/API.spec.md` §4
 - Reglas del repo: [`AGENTS.md`](AGENTS.md)
+
+## Reintentos de `apk publish`
+
+Subir ~36 MB falla de vez en cuando con «fetch failed» y funciona al repetirlo
+sin cambiar nada. El comando lo hace solo: **hasta 3 intentos**, con espera
+creciente.
+
+Lo que NO se reintenta es una **respuesta** del server —409 firma distinta, 422
+manifiesto ilegible, 401 token— porque es una decisión tomada: repetirla solo
+sube el APK de nuevo para leer el mismo motivo.
+
+Si los tres intentos fallan, **nada quedó publicado**: se puede volver a correr
+el comando sin miedo a publicar dos veces.

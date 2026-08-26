@@ -16,6 +16,20 @@ import { basename, join } from 'node:path';
 import { rojo, verde, aviso, tenue, mb } from './consola.mjs';
 import { tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
 import { avisarSiHayVersionNueva } from './actualizacion.mjs';
+import { INTENTOS, dormir, esperaDelIntento, sePuedeReintentar } from './reintentos.mjs';
+
+/**
+ * El cuerpo de la subida, armado de cero cada vez.
+ *
+ * Un `FormData` ya enviado no se puede reusar: su stream quedó consumido y el
+ * reintento mandaría un cuerpo vacío.
+ */
+function armarCuerpo(bytes, ruta, metadata) {
+  const cuerpo = new FormData();
+  cuerpo.append('apk', new Blob([bytes]), basename(ruta));
+  cuerpo.append('metadata', JSON.stringify(metadata));
+  return cuerpo;
+}
 
 /** Sin ruta, el APK más nuevo de `dist/`. Es lo que acaba de compilar `apk build`. */
 function buscarEnDist(carpeta = 'dist') {
@@ -147,9 +161,6 @@ export async function publish(opciones) {
     return 0;
   }
 
-  const cuerpo = new FormData();
-  cuerpo.append('apk', new Blob([bytes]), basename(ruta));
-  cuerpo.append('metadata', JSON.stringify(metadata));
 
   // **Subir 30 MB por datos móviles son minutos de silencio.** Sin ninguna
   // señal, «tarda» es indistinguible de «se colgó», y quien lo mira corta con
@@ -158,19 +169,43 @@ export async function publish(opciones) {
   // No se inventa un porcentaje: `fetch` no expone bytes enviados y un número
   // que no avanza miente peor que no tener ninguno. Se muestra el tiempo, que es
   // cierto y alcanza para saber que sigue vivo.
-  const pulso = latido(bytes.length);
+  //
+  // **Se reintenta, pero solo si el intento no llegó.** Con ~36 MB, `fetch`
+  // falla de vez en cuando con «fetch failed» y funciona al repetirlo sin
+  // cambiar nada. Se verificó que tras ese fallo el catálogo NO queda con la
+  // versión, así que no hay riesgo de publicar dos veces. Una RESPUESTA del
+  // server (409, 422, 401) no se reintenta jamás: es una decisión tomada, y
+  // repetirla solo sube 36 MB de nuevo para leer el mismo motivo.
   let respuesta;
-  try {
-    respuesta = await fetch(`${base}/api/v1/releases`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}` },
-      body: cuerpo,
-    });
-  } catch (fallo) {
-    pulso.parar();
-    return rojo(`No se pudo contactar a ${base}: ${fallo.message}`);
+  let ultimoFallo;
+  for (let intento = 1; intento <= INTENTOS; intento += 1) {
+    const pulso = latido(bytes.length);
+    try {
+      respuesta = await fetch(`${base}/api/v1/releases`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        // El cuerpo se arma DE NUEVO en cada intento: un `FormData` ya
+        // consumido se manda vacío, y el server contestaría «sin archivo»
+        // en el reintento — un fallo distinto al original y más confuso.
+        body: armarCuerpo(bytes, ruta, metadata),
+      });
+      pulso.parar();
+      break;
+    } catch (fallo) {
+      pulso.parar();
+      ultimoFallo = fallo;
+      if (!sePuedeReintentar({ intento, maximo: INTENTOS, fueRespuesta: false })) break;
+      const espera = esperaDelIntento(intento);
+      aviso(`La subida se cortó (${fallo.message}). Reintento ${intento + 1} de ${INTENTOS} en ${Math.round(espera / 1000)}s…`);
+      await dormir(espera);
+    }
   }
-  pulso.parar();
+
+  if (!respuesta) {
+    rojo(`No se pudo contactar a ${base}: ${ultimoFallo?.message ?? 'sin detalle'}`);
+    console.error(`  Se intentó ${INTENTOS} veces. Nada quedó publicado: volvé a correr el comando.`);
+    return 1;
+  }
 
   const datos = await respuesta.json().catch(() => ({}));
   if (respuesta.status !== 201) {
