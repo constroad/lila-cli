@@ -13,10 +13,111 @@ import { readFile } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
+import tusPkg from 'tus-js-client';
 import { rojo, verde, aviso, tenue, mb } from './consola.mjs';
 import { tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
 import { avisarSiHayVersionNueva } from './actualizacion.mjs';
 import { INTENTOS, dormir, esperaDelIntento, sePuedeReintentar } from './reintentos.mjs';
+
+const { Upload } = tusPkg;
+
+/** 6 MB por PATCH: sobra dentro de los ~100 s aun por datos móviles lentos. */
+const TROZO_TUS = 6 * 1024 * 1024;
+
+/**
+ * ¿Se cae al POST clásico? SOLO cuando el server no TIENE el endpoint de tus —un
+ * LilaStore viejo, todavía sin deployar—: ahí la creación da 404/501 y el POST
+ * de siempre funciona. Un rechazo del server (401, 409, 413, 422) es una
+ * DECISIÓN tomada: no se reintenta por otra vía, se muestra el motivo.
+ */
+export function debeCaerAlPost(status) {
+  return status === 404 || status === 501;
+}
+
+/** JSON del server, o `{}` si vino vacío o roto (un 500 sin cuerpo, una descarga cortada). */
+function parsearJson(texto) {
+  if (!texto) return {};
+  try {
+    return JSON.parse(texto);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Sube por tus (trozos). El APK entero no entra en una request bajo Cloudflare
+ * (~100 s); tus lo parte en `PATCH` chicos. Reusa el `@tus/server` de LilaStore.
+ *
+ * Devuelve `{ ok, status, body }` en éxito (el `body` es el JSON de la release,
+ * que `onUploadFinish` mete en la respuesta del último PATCH), o
+ * `{ ok:false, status, mensaje }` en fallo — con `status` cuando el server
+ * respondió, para poder decidir el fallback.
+ */
+function subirPorTus({ base, token, bytes, ruta, metadata }) {
+  return new Promise((resolver) => {
+    const pulso = latido(bytes.length);
+    const subida = new Upload(bytes, {
+      endpoint: `${base}/api/v1/releases/upload-tus`,
+      chunkSize: TROZO_TUS,
+      // tus reanuda solo los cortes de red; estos son los reintentos DE red, no
+      // de una respuesta del server (esas no se reintentan).
+      retryDelays: [0, 3000, 6000, 12000],
+      headers: { authorization: `Bearer ${token}` },
+      // Todo en UN campo `metadata`: el server hace `parseMetadata` del JSON,
+      // igual que en el POST. `filename` va aparte porque tus lo usa de nombre.
+      metadata: { metadata: JSON.stringify(metadata), filename: basename(ruta) },
+      onError(error) {
+        pulso.parar();
+        const respuesta = error?.originalResponse;
+        const status = respuesta?.getStatus?.() ?? null;
+        resolver({
+          ok: false,
+          status,
+          body: respuesta?.getBody?.() ?? null,
+          mensaje: error?.message ?? 'la subida por trozos falló',
+        });
+      },
+      onSuccess({ lastResponse }) {
+        pulso.parar();
+        resolver({ ok: true, status: lastResponse.getStatus(), body: lastResponse.getBody() });
+      },
+    });
+    subida.start();
+  });
+}
+
+/**
+ * El POST multipart de siempre, con reintento SOLO ante un corte de red (nunca
+ * ante una respuesta del server). Es el fallback para un LilaStore sin tus.
+ */
+async function subirPorPost({ base, token, bytes, ruta, metadata }) {
+  let respuesta;
+  let ultimoFallo;
+  for (let intento = 1; intento <= INTENTOS; intento += 1) {
+    const pulso = latido(bytes.length);
+    try {
+      respuesta = await fetch(`${base}/api/v1/releases`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        // El cuerpo se arma DE NUEVO cada intento: un `FormData` consumido se
+        // manda vacío y el server contestaría «sin archivo» en el reintento.
+        body: armarCuerpo(bytes, ruta, metadata),
+      });
+      pulso.parar();
+      break;
+    } catch (fallo) {
+      pulso.parar();
+      ultimoFallo = fallo;
+      if (!sePuedeReintentar({ intento, maximo: INTENTOS, fueRespuesta: false })) break;
+      const espera = esperaDelIntento(intento);
+      aviso(
+        `La subida se cortó (${fallo.message}). Reintento ${intento + 1} de ${INTENTOS} en ${Math.round(espera / 1000)}s…`
+      );
+      await dormir(espera);
+    }
+  }
+  return { respuesta, ultimoFallo };
+}
 
 /**
  * El cuerpo de la subida, armado de cero cada vez.
@@ -162,53 +263,43 @@ export async function publish(opciones) {
   }
 
 
-  // **Subir 30 MB por datos móviles son minutos de silencio.** Sin ninguna
-  // señal, «tarda» es indistinguible de «se colgó», y quien lo mira corta con
-  // Ctrl-C a mitad — que es la única forma de que esto salga mal de verdad.
+  // **Un APK grande es minutos de silencio, y encima no entra en UNA request
+  // bajo Cloudflare (~100 s).** Por eso se sube por TUS (trozos): cada `PATCH`
+  // es chico y sobra en tiempo, y tus reanuda solo los cortes de red. Un
+  // LilaStore viejo sin ese endpoint hace caer al POST multipart de siempre.
   //
-  // No se inventa un porcentaje: `fetch` no expone bytes enviados y un número
-  // que no avanza miente peor que no tener ninguno. Se muestra el tiempo, que es
-  // cierto y alcanza para saber que sigue vivo.
-  //
-  // **Se reintenta, pero solo si el intento no llegó.** Con ~36 MB, `fetch`
-  // falla de vez en cuando con «fetch failed» y funciona al repetirlo sin
-  // cambiar nada. Se verificó que tras ese fallo el catálogo NO queda con la
-  // versión, así que no hay riesgo de publicar dos veces. Una RESPUESTA del
-  // server (409, 422, 401) no se reintenta jamás: es una decisión tomada, y
-  // repetirla solo sube 36 MB de nuevo para leer el mismo motivo.
-  let respuesta;
-  let ultimoFallo;
-  for (let intento = 1; intento <= INTENTOS; intento += 1) {
-    const pulso = latido(bytes.length);
-    try {
-      respuesta = await fetch(`${base}/api/v1/releases`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${token}` },
-        // El cuerpo se arma DE NUEVO en cada intento: un `FormData` ya
-        // consumido se manda vacío, y el server contestaría «sin archivo»
-        // en el reintento — un fallo distinto al original y más confuso.
-        body: armarCuerpo(bytes, ruta, metadata),
-      });
-      pulso.parar();
-      break;
-    } catch (fallo) {
-      pulso.parar();
-      ultimoFallo = fallo;
-      if (!sePuedeReintentar({ intento, maximo: INTENTOS, fueRespuesta: false })) break;
-      const espera = esperaDelIntento(intento);
-      aviso(`La subida se cortó (${fallo.message}). Reintento ${intento + 1} de ${INTENTOS} en ${Math.round(espera / 1000)}s…`);
-      await dormir(espera);
-    }
-  }
+  // Una RESPUESTA del server (409, 422, 401, 413) no se reintenta por ninguna
+  // vía: es una decisión tomada, y repetirla solo sube el APK de nuevo para leer
+  // el mismo motivo.
+  let status;
+  let datos;
 
-  if (!respuesta) {
-    rojo(`No se pudo contactar a ${base}: ${ultimoFallo?.message ?? 'sin detalle'}`);
-    console.error(`  Se intentó ${INTENTOS} veces. Nada quedó publicado: volvé a correr el comando.`);
+  const viaTus = await subirPorTus({ base, token, bytes, ruta, metadata });
+  if (viaTus.ok) {
+    status = viaTus.status;
+    datos = parsearJson(viaTus.body);
+  } else if (debeCaerAlPost(viaTus.status)) {
+    tenue('  (este LilaStore no tiene subida por trozos; uso el POST clásico)');
+    const { respuesta, ultimoFallo } = await subirPorPost({ base, token, bytes, ruta, metadata });
+    if (!respuesta) {
+      rojo(`No se pudo contactar a ${base}: ${ultimoFallo?.message ?? 'sin detalle'}`);
+      console.error(`  Se intentó ${INTENTOS} veces. Nada quedó publicado: volvé a correr el comando.`);
+      return 1;
+    }
+    status = respuesta.status;
+    datos = await respuesta.json().catch(() => ({}));
+  } else if (viaTus.status) {
+    // El server respondió con una decisión: se muestra tal cual, sin otra vía.
+    status = viaTus.status;
+    datos = parsearJson(viaTus.body);
+  } else {
+    // Ni contacto hubo (red), y tus ya agotó sus reintentos de red.
+    rojo(`No se pudo contactar a ${base}: ${viaTus.mensaje}`);
+    console.error('  Nada quedó publicado: volvé a correr el comando.');
     return 1;
   }
 
-  const datos = await respuesta.json().catch(() => ({}));
-  if (respuesta.status !== 201) {
+  if (status !== 201) {
     // El motivo EXACTO del server. Las validaciones existen para que quien
     // publica sepa qué arreglar sin abrir un log.
     rojo(`${respuesta.status} ${datos.codigo ?? ''} — ${datos.error ?? 'sin detalle'}`);
