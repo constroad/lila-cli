@@ -181,6 +181,18 @@ deploy`, `lila auth keys`, `lila store devices`.
 esta herramienta se usa cada dos semanas y nadie recuerda las banderas de algo
 que corrió por última vez hace quince días.
 
+
+### `lila app screenshots <slug> <a.png> [b.png …]`
+
+Sube las capturas de pantalla de la ficha (hasta 6, PNG o JPG de hasta 2 MB
+cada una). La tanda **reemplaza** las capturas que había, en el orden en que
+se pasan. Mismo token que `app icon`; mismo motivo: la consola ya las aceptaba
+a mano y ninguna app tuvo una sola captura en un mes.
+
+```bash
+lila app screenshots fotos capturas/fotos.png capturas/colecciones.png capturas/respaldo.png
+```
+
 ### `apk publish` no declara nada
 
 La versión, el `versionCode` y el `package` **los lee el servidor del

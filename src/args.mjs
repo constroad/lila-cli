@@ -56,6 +56,7 @@ const BANDERAS = {
   'apk:build': ['abi', 'signing', 'out'],
   'apk:publish': ['channel', 'notes', 'critical', 'enforce', 'dry-run', 'url'],
   'app:icon': ['url'],
+  'app:screenshots': ['url'],
   login: ['url'],
   whoami: ['url'],
 };
@@ -168,16 +169,21 @@ export function parseArgs(argv) {
    * `apk icon` sugeriría que sale del APK, que es justo lo que NO pasa.
    */
   if (primero === 'app') {
-    if (resto[0] !== 'icon') {
-      return error(`«${resto[0] ?? '(nada)'}» no es un comando de app. Los que hay: icon.`);
+    if (resto[0] !== 'icon' && resto[0] !== 'screenshots') {
+      return error(`«${resto[0] ?? '(nada)'}» no es un comando de app. Los que hay: icon, screenshots.`);
     }
-    const malas = validarBanderas('app:icon', banderas);
+    const comando = `app:${resto[0]}`;
+    const malas = validarBanderas(comando, banderas);
     if (malas) return error(malas);
     const url = banderas.get('url');
     if (url !== undefined && !esUrl(url)) return error('--url tiene que ser http:// o https://');
+    if (comando === 'app:screenshots') {
+      // `lila app screenshots <slug> <a.png> [b.png …]`: la tanda REEMPLAZA las capturas de la ficha.
+      return { error: undefined, comando, opciones: { app: resto[1], archivos: resto.slice(2), url: url ?? null } };
+    }
     return {
       error: undefined,
-      comando: 'app:icon',
+      comando,
       opciones: { app: resto[1], archivo: resto[2], url: url ?? null },
     };
   }

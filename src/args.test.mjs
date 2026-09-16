@@ -244,3 +244,21 @@ describe('lila app icon', () => {
     expect(parseArgs(['app']).error).toMatch(/icon/);
   });
 });
+
+describe('app screenshots', () => {
+  test('toma el slug y la lista de archivos', () => {
+    const salida = parseArgs(['app', 'screenshots', 'fotos', 'a.png', 'b.png']);
+    assert.equal(salida.error, undefined);
+    assert.equal(salida.comando, 'app:screenshots');
+    assert.deepEqual(salida.opciones, { app: 'fotos', archivos: ['a.png', 'b.png'], url: null });
+  });
+
+  test('acepta --url y rechaza otras banderas', () => {
+    assert.equal(parseArgs(['app', 'screenshots', 'x', 'a.png', '--url=https://otra.test']).opciones.url, 'https://otra.test');
+    assert.match(parseArgs(['app', 'screenshots', 'x', 'a.png', '--channel=beta']).error, /channel|bandera/i);
+  });
+
+  test('un verbo de app desconocido lista los que hay', () => {
+    assert.match(parseArgs(['app', 'fotos']).error, /icon, screenshots/);
+  });
+});

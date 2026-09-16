@@ -20,6 +20,7 @@ import { crear, respaldar, verificar, huella } from '../src/keystore.mjs';
 import { build } from '../src/build.mjs';
 import { publish } from '../src/publish.mjs';
 import { subirIcono } from '../src/icono.mjs';
+import { subirCapturas } from '../src/capturas.mjs';
 import { login, whoami } from '../src/sesion.mjs';
 import { menu } from '../src/menu.mjs';
 
@@ -52,6 +53,7 @@ const comandos = {
   'apk:build': () => build(opciones),
   'apk:publish': () => publish(opciones),
   'app:icon': () => subirIcono(opciones.app, opciones.archivo, opciones),
+  'app:screenshots': () => subirCapturas(opciones.app, opciones.archivos, opciones),
 };
 
 const ejecutar = comandos[comando];
