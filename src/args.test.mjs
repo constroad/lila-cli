@@ -220,28 +220,28 @@ describe('los comandos sueltos', () => {
 describe('lila app icon', () => {
   test('toma el slug y el archivo por posición', () => {
     const salida = parseArgs(['app', 'icon', 'lilachat', 'assets/store-icon.png']);
-    expect(salida.error).toBeUndefined();
-    expect(salida.comando).toBe('app:icon');
-    expect(salida.opciones.app).toBe('lilachat');
-    expect(salida.opciones.archivo).toBe('assets/store-icon.png');
+    assert.equal(salida.error, undefined);
+    assert.equal(salida.comando, 'app:icon');
+    assert.equal(salida.opciones.app, 'lilachat');
+    assert.equal(salida.opciones.archivo, 'assets/store-icon.png');
   });
 
   test('acepta apuntar a otra instancia', () => {
     const salida = parseArgs(['app', 'icon', 'x', 'a.png', '--url=https://otra.test']);
-    expect(salida.opciones.url).toBe('https://otra.test');
+    assert.equal(salida.opciones.url, 'https://otra.test');
   });
 
   test('una url que no es url se rechaza', () => {
-    expect(parseArgs(['app', 'icon', 'x', 'a.png', '--url=pepe']).error).toMatch(/http/);
+    assert.match(parseArgs(['app', 'icon', 'x', 'a.png', '--url=pepe']).error, /http/);
   });
 
   /** Un verbo inventado nombra los que sí existen, en vez de tirar el uso pelado. */
   test('un verbo que no existe dice cuáles hay', () => {
-    expect(parseArgs(['app', 'borrar']).error).toMatch(/icon/);
+    assert.match(parseArgs(['app', 'borrar']).error, /icon/);
   });
 
   test('sin verbo también', () => {
-    expect(parseArgs(['app']).error).toMatch(/icon/);
+    assert.match(parseArgs(['app']).error, /icon/);
   });
 });
 
