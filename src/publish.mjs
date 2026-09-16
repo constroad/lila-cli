@@ -301,8 +301,11 @@ export async function publish(opciones) {
 
   if (status !== 201) {
     // El motivo EXACTO del server. Las validaciones existen para que quien
-    // publica sepa qué arreglar sin abrir un log.
-    rojo(`${respuesta.status} ${datos.codigo ?? ''} — ${datos.error ?? 'sin detalle'}`);
+    // publica sepa qué arreglar sin abrir un log. (`status`, no `respuesta`:
+    // por la vía tus no hay `respuesta`, y el rechazo moría con un
+    // ReferenceError que tapaba el motivo real — 15/09/2026, primer publish
+    // de Lilafotos.)
+    rojo(`${status} ${datos.codigo ?? ''} — ${datos.error ?? 'sin detalle'}`);
     // **El aviso de versión nueva va acá y no en el camino feliz.** Cuando algo
     // falla es justo cuando importa saber si estás corriendo una versión vieja —
     // y es el momento en que nadie se acuerda de preguntarlo. En una publicación

@@ -424,7 +424,7 @@ Depende de cómo lo invoques, y por eso las dos formas conviven:
 | Cómo lo corrés | ¿Trae la nueva al publicar en npm? |
 | --- | --- |
 | `npx @constroad/lila-cli` (a mano, la doc) | **Sí**, resuelve `latest` en cada corrida |
-| `npx @constroad/lila-cli@0.6.0` (scripts, CI) | **No.** Hay que subir el número |
+| `npx @constroad/lila-cli@0.9.0` (scripts, CI) | **No.** Hay que subir el número |
 | `npm i -g @constroad/lila-cli` | No, hasta un `npm update -g` |
 
 Que la automatización **no** se entere es el punto: un CLI que se actualiza solo
