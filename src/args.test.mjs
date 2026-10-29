@@ -262,3 +262,16 @@ describe('app screenshots', () => {
     assert.match(parseArgs(['app', 'fotos']).error, /icon, screenshots/);
   });
 });
+
+describe('app listing', () => {
+  test('takes the slug and the file with the texts of the listing', () => {
+    const parsed = parseArgs(['app', 'listing', 'lilaspeak', 'store/listing.json']);
+    assert.equal(parsed.error, undefined);
+    assert.equal(parsed.comando, 'app:listing');
+    assert.deepEqual(parsed.opciones, { app: 'lilaspeak', archivo: 'store/listing.json', url: null });
+  });
+
+  test('aborts on a flag it does not know', () => {
+    assert.match(parseArgs(['app', 'listing', 'x', 'l.json', '--channel=beta']).error, /channel|bandera/i);
+  });
+});

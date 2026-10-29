@@ -193,6 +193,18 @@ a mano y ninguna app tuvo una sola captura en un mes.
 lila app screenshots fotos capturas/fotos.png capturas/colecciones.png capturas/respaldo.png
 ```
 
+### `lila app listing <slug> <listing.json>`
+
+Sube el texto de la ficha: el resumen (1 a 80 caracteres) y la descripción
+(hasta 4000). El archivo vive en el repo de la app y lleva los dos campos
+siempre; la descripción puede ser `""`, pero no puede faltar, para que un
+archivo incompleto no borre el texto. Si el texto ya era ese, el servidor no
+escribe nada. Mismo token que `app icon`.
+
+```bash
+lila app listing lilaspeak store/listing.json
+```
+
 ### `apk publish` no declara nada
 
 La versión, el `versionCode` y el `package` **los lee el servidor del

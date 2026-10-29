@@ -21,6 +21,7 @@ import { build } from '../src/build.mjs';
 import { publish } from '../src/publish.mjs';
 import { subirIcono } from '../src/icono.mjs';
 import { subirCapturas } from '../src/capturas.mjs';
+import { uploadListing } from '../src/listing.mjs';
 import { login, whoami } from '../src/sesion.mjs';
 import { menu } from '../src/menu.mjs';
 
@@ -54,6 +55,7 @@ const comandos = {
   'apk:publish': () => publish(opciones),
   'app:icon': () => subirIcono(opciones.app, opciones.archivo, opciones),
   'app:screenshots': () => subirCapturas(opciones.app, opciones.archivos, opciones),
+  'app:listing': () => uploadListing(opciones.app, opciones.archivo, opciones),
 };
 
 const ejecutar = comandos[comando];

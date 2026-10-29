@@ -57,6 +57,7 @@ const BANDERAS = {
   'apk:publish': ['channel', 'notes', 'critical', 'enforce', 'dry-run', 'url'],
   'app:icon': ['url'],
   'app:screenshots': ['url'],
+  'app:listing': ['url'],
   login: ['url'],
   whoami: ['url'],
 };
@@ -80,6 +81,8 @@ const USO = `Uso:
 
   lila app icon <slug> <a.png>     sube el ícono de la app a la tienda
      --url=https://…               otra instancia de LilaStore
+  lila app screenshots <slug> <a.png> [b.png …]  reemplaza las capturas de la ficha
+  lila app listing <slug> <listing.json>  resumen y descripción de la ficha
 
   lila apk build                   compila y firma
      --signing=release|debug       con qué se firma (release por defecto)
@@ -169,8 +172,8 @@ export function parseArgs(argv) {
    * `apk icon` sugeriría que sale del APK, que es justo lo que NO pasa.
    */
   if (primero === 'app') {
-    if (resto[0] !== 'icon' && resto[0] !== 'screenshots') {
-      return error(`«${resto[0] ?? '(nada)'}» no es un comando de app. Los que hay: icon, screenshots.`);
+    if (resto[0] !== 'icon' && resto[0] !== 'screenshots' && resto[0] !== 'listing') {
+      return error(`«${resto[0] ?? '(nada)'}» no es un comando de app. Los que hay: icon, screenshots, listing.`);
     }
     const comando = `app:${resto[0]}`;
     const malas = validarBanderas(comando, banderas);
