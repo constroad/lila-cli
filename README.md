@@ -151,8 +151,8 @@ lila ota publish --record-apk=dist/<apk>       # después de cada apk build: run
   o de `~/.config/<slug>-ota/private-key.pem` (o `~/.config/<repo>-ota/`, porque
   Lilafotos publica con slug `fotos`). Antes de firmar se comprueba que sea la del
   certificado de `app.json` **y** la del certificado registrado en LilaStore.
-- **El token es otro**: `lso_…`, de alcance OTA, creado en `/console/ota` (o desde
-  el APK de LilaStore). `lila login` lo guarda aparte del de APK de la misma app;
+- **El token es otro**: `lota_…` (los primeros se emitieron como `lso_…` y siguen
+  valiendo), de alcance OTA, creado en `/console/ota` (o desde el APK de LilaStore). `lila login` lo guarda aparte del de APK de la misma app;
   en CI va en `LILASTORE_OTA_TOKEN`. Antes de exportar se pregunta a
   `GET /api/v1/token` si sigue vivo: un token revocado se descubre en un segundo,
   no después de dos minutos de export.

@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { describe, test } from 'node:test';
-import { elegirToken, guardarEnMapa, leerMapa, otaKey, pickOtaToken } from './tokens.mjs';
+import { elegirToken, guardarEnMapa, leerMapa, otaKey, pickOtaToken, tokenLabel } from './tokens.mjs';
 
 /**
  * Elegir CUÁL token usar cuando hay más de una app en la misma máquina.
@@ -188,5 +188,18 @@ describe('OTA tokens (0.12.0)', () => {
     assert.equal(picked.token, null);
     assert.match(picked.reason, /fotos/);
     assert.match(picked.reason, /lilachat/);
+  });
+});
+
+describe('tokenLabel', () => {
+  test('names the token by the prefix it CARRIES: lota_ (new OTA), lso_ (older OTA), lsp_ (APK)', () => {
+    assert.equal(tokenLabel('lota_ab12_secret', 'ab12'), 'lota_ab12');
+    assert.equal(tokenLabel('lso_ab12_secret', 'ab12'), 'lso_ab12');
+    assert.equal(tokenLabel('lsp_ab12_se_cr_et', 'ab12'), 'lsp_ab12');
+  });
+
+  test('without a public id (an older server) or a prefix, there is nothing to show', () => {
+    assert.equal(tokenLabel('lota_ab12_secret', null), null);
+    assert.equal(tokenLabel('basura', 'ab12'), null);
   });
 });

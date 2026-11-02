@@ -115,7 +115,7 @@ export function elegirToken({ delEntorno, guardado, app }) {
 }
 
 /**
- * OTA tokens (`lso_…`, 0.12.0) live in the same file under `ota:<slug>`, next to the APK token of
+ * OTA tokens (`lota_…`, earlier `lso_…`) live in the same file under `ota:<slug>`, next to the APK token of
  * that app. The choice is stricter than `elegirToken`: no legacy fallback and no «the only one
  * there is», because an APK token never publishes an update and the 401 would look like «revoked».
  */
@@ -135,4 +135,14 @@ export function pickOtaToken({ fromEnv, saved, app }) {
       ? 'No sé de qué app es este directorio: corre esto donde está su app.json.'
       : `No hay token OTA para «${app}»${others.length ? ` (hay de: ${others.join(', ')})` : ''}. Créalo en /console/ota y guárdalo con «lila login», o exporta LILASTORE_OTA_TOKEN.`,
   };
+}
+
+/**
+ * `lota_ab12`: how the console names the token, from the prefix the token itself carries (`lota_`
+ * for OTA since 02/11/2026, `lso_` for the OTA ones issued before, `lsp_` for APKs). Never the
+ * secret: only the prefix and the public id the server returned.
+ */
+export function tokenLabel(token, publicId) {
+  const prefix = /^([a-z]+)_/.exec(String(token ?? ''))?.[1];
+  return prefix && publicId ? `${prefix}_${publicId}` : null;
 }

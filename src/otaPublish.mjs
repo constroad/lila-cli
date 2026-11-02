@@ -188,7 +188,7 @@ async function assertTokenUsable(base, token, slug) {
   if (response.status === 401) stop(UNAUTHORIZED);
   if (!response.ok) stop(`No pude comprobar el token en ${base} (${response.status}).`);
   const data = await response.json();
-  if (data.scope !== 'ota') stop(`Ese es un token de APK (lsp_…): para OTA hace falta uno lso_…, de /console/ota.`);
+  if (data.scope !== 'ota') stop(`Ese es un token de APK (lsp_…): para OTA hace falta uno lota_…, de /console/ota.`);
   if (data.app !== slug) stop(`Ese token OTA es de «${data.app}», no de «${slug}».`);
   if (!data.vigente) stop(`El token OTA de «${slug}» ya no sirve: ${data.motivo === 'revocado' ? 'lo revocaron' : 'venció'}. Regéneralo en /console/ota y guárdalo con «lila login».`);
 }

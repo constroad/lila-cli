@@ -62,7 +62,7 @@ export function tokenActual({ app } = {}) {
   });
 }
 
-/** The OTA token (`lso_…`) of `app`: env `LILASTORE_OTA_TOKEN`, else the one saved under `ota:<app>`. */
+/** The OTA token (`lota_…`, earlier `lso_…`) of `app`: env `LILASTORE_OTA_TOKEN`, else the one saved under `ota:<app>`. */
 export const otaTokenFor = (app) => pickOtaToken({ fromEnv: process.env.LILASTORE_OTA_TOKEN, saved: mapaGuardado(), app });
 
 /** `scope: 'ota'` saves under `ota:<app>`, so the APK token of the same app stays where it was. */
