@@ -48,7 +48,8 @@ export function guardarEnMapa(mapa, app, token, url) {
   return { version: 2, tokens: { ...mapa.tokens, [app]: { token, url } } };
 }
 
-const nombres = (tokens) => Object.keys(tokens).filter(Boolean).sort();
+// `ota:<slug>` keys hold OTA tokens (0.12.0): they never publish an APK, so they are not candidates here.
+const namedKeys = (tokens) => Object.keys(tokens).filter((key) => key && !key.startsWith(OTA_PREFIX)).sort();
 
 export function elegirToken({ delEntorno, guardado, app }) {
   // Gana siempre: es lo que hace que el mismo comando funcione en un runner,
@@ -59,7 +60,7 @@ export function elegirToken({ delEntorno, guardado, app }) {
   }
 
   const { tokens } = guardado;
-  const conNombre = nombres(tokens);
+  const named = namedKeys(tokens);
   const legado = tokens[''];
 
   if (app && tokens[app]) {
@@ -90,14 +91,14 @@ export function elegirToken({ delEntorno, guardado, app }) {
       app: null,
       url: null,
       motivo:
-        conNombre.length === 0
+        named.length === 0
           ? `No hay token guardado. Corré «lila login» dentro de ${app}, o exportá LILASTORE_TOKEN.`
-          : `No hay token para «${app}». Tenés de: ${conNombre.join(', ')}. Corré «lila login» acá adentro.`,
+          : `No hay token para «${app}». Tienes de: ${named.join(', ')}. Corre «lila login» aquí adentro.`,
     };
   }
 
-  if (conNombre.length === 1) {
-    const solo = conNombre[0];
+  if (named.length === 1) {
+    const solo = named[0];
     return { token: tokens[solo].token, origen: `guardado (${solo})`, app: solo, url: tokens[solo].url, motivo: null };
   }
 
@@ -107,8 +108,31 @@ export function elegirToken({ delEntorno, guardado, app }) {
     app: null,
     url: null,
     motivo:
-      conNombre.length === 0
+      named.length === 0
         ? 'No hay token guardado. Corré «lila login», o exportá LILASTORE_TOKEN.'
-        : `Tenés tokens de ${conNombre.join(', ')} y no sé cuál usar: corré esto dentro del repo de la app, o exportá LILASTORE_TOKEN.`,
+        : `Tienes tokens de ${named.join(', ')} y no sé cuál usar: corre esto dentro del repo de la app, o exporta LILASTORE_TOKEN.`,
+  };
+}
+
+/**
+ * OTA tokens (`lso_…`, 0.12.0) live in the same file under `ota:<slug>`, next to the APK token of
+ * that app. The choice is stricter than `elegirToken`: no legacy fallback and no «the only one
+ * there is», because an APK token never publishes an update and the 401 would look like «revoked».
+ */
+export const OTA_PREFIX = 'ota:';
+export const otaKey = (app) => `${OTA_PREFIX}${app}`;
+
+export function pickOtaToken({ fromEnv, saved, app }) {
+  if (typeof fromEnv === 'string' && fromEnv !== '') return { token: fromEnv, origin: 'LILASTORE_OTA_TOKEN', url: null, reason: null };
+  const entry = app ? saved.tokens[otaKey(app)] : null;
+  if (entry?.token) return { token: entry.token, origin: `guardado (OTA de ${app})`, url: entry.url ?? null, reason: null };
+  const others = Object.keys(saved.tokens).filter((key) => key.startsWith(OTA_PREFIX)).map((key) => key.slice(OTA_PREFIX.length)).sort();
+  return {
+    token: null,
+    origin: null,
+    url: null,
+    reason: !app
+      ? 'No sé de qué app es este directorio: corre esto donde está su app.json.'
+      : `No hay token OTA para «${app}»${others.length ? ` (hay de: ${others.join(', ')})` : ''}. Créalo en /console/ota y guárdalo con «lila login», o exporta LILASTORE_OTA_TOKEN.`,
   };
 }

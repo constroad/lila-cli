@@ -131,6 +131,42 @@ busca el de esa app. Por eso todos los comandos se corren dentro del repo.
 
 ## Comandos
 
+### `lila ota publish` y `lila ota cert` (0.12.0)
+
+Las actualizaciones OTA (el JavaScript de una app Expo, sin APK nuevo) de **todas**
+las apps de la casa las aloja LilaStore desde el 02/11/2026. Antes cada server
+(Lilachat, Lilafotos) guardaba las suyas con una copia del mismo código y un
+`OTA_PUBLISH_TOKEN` plano en su `.env`, sin forma de listarlo ni revocarlo.
+
+```bash
+cd app                                         # donde está app.json
+lila ota cert lilachat certs/certificate.crt   # una vez: el certificado PÚBLICO
+lila ota publish                               # export, firma, subida y verificación
+lila ota publish --embedded                    # todos los teléfonos vuelven al código de su APK
+lila ota publish --dry-run                     # exporta y verifica, sin subir
+lila ota publish --record-apk=dist/<apk>       # después de cada apk build: runtime + línea base
+```
+
+- **La llave privada no sale de esta máquina.** Se lee de `OTA_PRIVATE_KEY_PATH`
+  o de `~/.config/<slug>-ota/private-key.pem` (o `~/.config/<repo>-ota/`, porque
+  Lilafotos publica con slug `fotos`). Antes de firmar se comprueba que sea la del
+  certificado de `app.json` **y** la del certificado registrado en LilaStore.
+- **El token es otro**: `lso_…`, de alcance OTA, creado en `/console/ota` (o desde
+  el APK de LilaStore). `lila login` lo guarda aparte del de APK de la misma app;
+  en CI va en `LILASTORE_OTA_TOKEN`. Antes de exportar se pregunta a
+  `GET /api/v1/token` si sigue vivo: un token revocado se descubre en un segundo,
+  no después de dos minutos de export.
+- **El APK tiene que preguntarle a LilaStore**: `expo.updates.url` igual a
+  `https://lilastore.constroad.com/api/v1/apps/<slug>/ota/manifest`. Si no, el
+  comando se niega: publicar aquí no le llegaría a ningún teléfono.
+- **Las guardias de Lilachat siguen**: export con el entorno de `lila.json`
+  (nunca el `.env`), la URL horneada y los hosts de desarrollo contra la línea
+  base del APK, `urls-locales.sh` de constroad-gates, y la relectura de lo que
+  sirve el server —manifest con su firma y el bundle— antes de decir «en vivo».
+- Publica desde `main`, limpio y empujado; `--no-git-checks` solo con `--dry-run`.
+- El candado `app-probada` de constroad-gates sigue mandando: antes de publicar,
+  un `rn-smoke.sh` en verde de esa app.
+
 ### `lila app icon <slug> <archivo.png>`
 
 Sube el ícono de una app a LilaStore, con el MISMO token que publica sus
@@ -166,6 +202,9 @@ lila keystore fingerprint <app>        la huella sha256, para el alta en la cons
 
 lila apk build                    compila y firma
 lila apk publish [ruta]           sube; sin ruta busca en dist/
+
+lila ota publish                  actualización OTA firmada, alojada en LilaStore
+lila ota cert <slug> <cert.pem>   registra el certificado PÚBLICO de la app
 ```
 
 **Todavía no existen**, y se listan para que nadie los busque: `apk check`

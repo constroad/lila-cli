@@ -16,7 +16,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { elegirToken, guardarEnMapa, leerMapa } from './tokens.mjs';
+import { elegirToken, guardarEnMapa, leerMapa, otaKey, pickOtaToken } from './tokens.mjs';
 
 const CARPETA = join(homedir(), '.config', 'lila-cli');
 const ARCHIVO = join(CARPETA, 'credentials.json');
@@ -62,7 +62,12 @@ export function tokenActual({ app } = {}) {
   });
 }
 
-export function guardarToken(token, url, app) {
+/** The OTA token (`lso_…`) of `app`: env `LILASTORE_OTA_TOKEN`, else the one saved under `ota:<app>`. */
+export const otaTokenFor = (app) => pickOtaToken({ fromEnv: process.env.LILASTORE_OTA_TOKEN, saved: mapaGuardado(), app });
+
+/** `scope: 'ota'` saves under `ota:<app>`, so the APK token of the same app stays where it was. */
+export function saveToken(token, url, app, scope = 'release') {
+  if (scope === 'ota') app = otaKey(app);
   mkdirSync(CARPETA, { recursive: true });
   const mapa = guardarEnMapa(mapaGuardado(), app, token, url);
   writeFileSync(ARCHIVO, `${JSON.stringify(mapa, null, 2)}\n`);

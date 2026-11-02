@@ -275,3 +275,27 @@ describe('app listing', () => {
     assert.match(parseArgs(['app', 'listing', 'x', 'l.json', '--channel=beta']).error, /channel|bandera/i);
   });
 });
+
+describe('lila ota (0.12.0)', () => {
+  test('publish with its switches', () => {
+    const { comando, opciones } = parseArgs(['ota', 'publish', '--embedded', '--dry-run']);
+    assert.equal(comando, 'ota:publish');
+    assert.deepEqual(opciones, { embedded: true, dryRun: true, noGitChecks: false, recordApk: null, url: null });
+  });
+
+  test('--record-apk takes the path and nothing else', () => {
+    assert.equal(parseArgs(['ota', 'publish', '--record-apk=dist/a.apk']).opciones.recordApk, 'dist/a.apk');
+    assert.match(parseArgs(['ota', 'publish', '--record-apk']).error, /ruta del APK/);
+    assert.match(parseArgs(['ota', 'publish', '--record-apk=a.apk', '--embedded']).error, /no se combina/);
+  });
+
+  test('an unknown flag aborts (a typo cannot publish something else)', () => {
+    assert.match(parseArgs(['ota', 'publish', '--embeded']).error, /--embeded no existe/);
+    assert.match(parseArgs(['ota', 'publsh']).error, /no es un comando de ota/);
+  });
+
+  test('cert needs the slug and the file', () => {
+    assert.deepEqual(parseArgs(['ota', 'cert', 'lilachat', 'certs/certificate.crt']).opciones, { app: 'lilachat', archivo: 'certs/certificate.crt', url: null });
+    assert.match(parseArgs(['ota', 'cert', 'lilachat']).error, /Uso: lila ota cert/);
+  });
+});

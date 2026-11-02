@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { describe, test } from 'node:test';
-import { elegirToken, guardarEnMapa, leerMapa } from './tokens.mjs';
+import { elegirToken, guardarEnMapa, leerMapa, otaKey, pickOtaToken } from './tokens.mjs';
 
 /**
  * Elegir CUÁL token usar cuando hay más de una app en la misma máquina.
@@ -166,5 +166,27 @@ describe('guardarEnMapa', () => {
 
     assert.equal(despues.tokens[''].token, 'viejo');
     assert.equal(despues.tokens.timon.token, 'nuevo');
+  });
+});
+
+describe('OTA tokens (0.12.0)', () => {
+  test('are stored apart and never picked for an APK publish', () => {
+    const map = guardarEnMapa(guardado({}), otaKey('lilachat'), 'lso_x', 'u');
+    const release = elegirToken({ delEntorno: undefined, guardado: map, app: null });
+    assert.equal(release.token, null);
+  });
+
+  test('an OTA publish uses the OTA token of THAT app, or the env var', () => {
+    const map = guardado({ lilachat: { token: 'lsp_apk', url: 'u' }, [otaKey('lilachat')]: { token: 'lso_ota', url: 'u' } });
+    assert.equal(pickOtaToken({ fromEnv: undefined, saved: map, app: 'lilachat' }).token, 'lso_ota');
+    assert.equal(pickOtaToken({ fromEnv: 'lso_env', saved: map, app: 'lilachat' }).origin, 'LILASTORE_OTA_TOKEN');
+  });
+
+  test('without one, it does not fall back to the APK token, and says which ones exist', () => {
+    const map = guardado({ fotos: { token: 'lsp_apk', url: 'u' }, [otaKey('lilachat')]: { token: 'lso_ota', url: 'u' } });
+    const picked = pickOtaToken({ fromEnv: '', saved: map, app: 'fotos' });
+    assert.equal(picked.token, null);
+    assert.match(picked.reason, /fotos/);
+    assert.match(picked.reason, /lilachat/);
   });
 });

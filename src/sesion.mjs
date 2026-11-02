@@ -5,14 +5,14 @@
  * descubrirse antes de una compilación de quince minutos, no después.**
  */
 import { rojo, verde, tenue, aviso, preguntarOculto } from './consola.mjs';
-import { guardarToken, tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
+import { saveToken, tokenActual, URL_POR_DEFECTO } from './credenciales.mjs';
 import { avisarSiHayVersionNueva } from './actualizacion.mjs';
 
 
 export async function login(opciones) {
   const base = opciones.url ?? URL_POR_DEFECTO;
   console.log(`Token de publicación para ${base}.`);
-  console.log('Se crea en /console/tokens y se muestra una sola vez.\n');
+  console.log('Se crea en /console/tokens (APK) o /console/ota (OTA) y se muestra una sola vez.\n');
 
   let token;
   try {
@@ -32,8 +32,9 @@ export async function login(opciones) {
   // lleva su app adentro, y guardarlo con otro nombre —porque hiciste login
   // desde la carpeta equivocada— produciría exactamente el fallo que este
   // cambio vino a arreglar.
-  const archivo = guardarToken(token.trim(), base, quien.app);
-  verde(`Guardado en ${archivo} para «${quien.app}»`);
+  // An OTA token (`lso_…`, 0.12.0) goes next to the APK one, not over it.
+  const file = saveToken(token.trim(), base, quien.app, quien.scope);
+  verde(`Guardado en ${file} para «${quien.app}»${quien.scope === 'ota' ? ' (OTA)' : ''}`);
   return imprimirQuien(quien);
 }
 
@@ -57,7 +58,7 @@ function imprimirQuien(quien) {
   // /console/tokens. Es la mitad que no es secreta —viaja en cada publicación—
   // y sin ella, con varios tokens vivos de la misma app, no hay forma de saber
   // cuál tenés cargado ni cuál se puede revocar sin romper nada.
-  if (quien.publicId) console.log(`token  : lsp_${quien.publicId}…`);
+  if (quien.publicId) console.log(`token  : ${quien.scope === 'ota' ? 'lso' : 'lsp'}_${quien.publicId}…${quien.scope === 'ota' ? ' (OTA)' : ''}`);
   console.log(`repo   : ${quien.repo || '—'}`);
   console.log(`vence  : ${quien.vence}`);
   console.log(`uso    : ${quien.lastUsed ?? 'nunca'}`);
@@ -104,6 +105,7 @@ async function consultar(base, token) {
       // Puede faltar contra una LilaStore anterior al 19/08/2026: se imprime solo
       // si vino, en vez de mostrar «lsp_undefined…».
       publicId: datos.publicId ?? null,
+      scope: datos.scope === 'ota' ? 'ota' : 'release',
       app: datos.app,
       name: datos.name,
       repo: datos.repo,

@@ -14,7 +14,8 @@
  *    canal equivocado.
  */
 
-export const AREAS = ['keystore', 'apk', 'app'];
+export const AREAS = ['keystore', 'apk', 'app', 'ota'];
+export const VERBOS_OTA = ['publish', 'cert'];
 export const CHANNELS = ['stable', 'beta', 'legacy'];
 export const VERBOS_KEYSTORE = ['create', 'backup', 'verify', 'fingerprint'];
 export const VERBOS_APK = ['build', 'publish'];
@@ -58,12 +59,14 @@ const BANDERAS = {
   'app:icon': ['url'],
   'app:screenshots': ['url'],
   'app:listing': ['url'],
+  'ota:publish': ['embedded', 'dry-run', 'record-apk', 'url', 'no-git-checks'],
+  'ota:cert': ['url'],
   login: ['url'],
   whoami: ['url'],
 };
 
 /** Las que son interruptores: `--critical` sin `=algo`. */
-const BOOLEANAS = new Set(['critical', 'dry-run', 'enforce', 'generated-key']);
+const BOOLEANAS = new Set(['critical', 'dry-run', 'enforce', 'generated-key', 'embedded', 'no-git-checks']);
 
 const USO = `Uso:
   lila                             menú interactivo
@@ -91,7 +94,14 @@ const USO = `Uso:
   lila apk publish [ruta.apk]      sube a LilaStore; sin ruta busca en dist/
      --enforce                     la fija además como versión MÍNIMA:
                                    quien tenga menos verá «actualizá»
-     --dry-run                     muestra qué se subiría, sin subir nada`;
+     --dry-run                     muestra qué se subiría, sin subir nada
+
+  lila ota publish                 actualización OTA (JavaScript) desde main, firmada
+                                   en esta máquina y alojada en LilaStore
+     --embedded                    devuelve los teléfonos al código de su APK
+     --dry-run                     exporta y verifica, sin subir nada
+     --record-apk=dist/<apk>       después de cada apk build: anota su runtime
+  lila ota cert <slug> <cert.pem>  registra el certificado PÚBLICO de la app`;
 
 const error = (mensaje) => ({ error: `${mensaje}\n\n${USO}`, comando: undefined, opciones: undefined });
 
@@ -191,6 +201,8 @@ export function parseArgs(argv) {
     };
   }
 
+  if (primero === 'ota') return ota(resto, banderas);
+
   const verbo = resto[0];
   const verbos = primero === 'keystore' ? VERBOS_KEYSTORE : VERBOS_APK;
   if (verbo && RENOMBRES[verbo]) {
@@ -263,6 +275,39 @@ function apk(comando, ruta, banderas) {
       critical: banderas.get('critical') === true,
       enforce: banderas.get('enforce') === true,
       dryRun: banderas.get('dry-run') === true,
+      url: url ?? null,
+    },
+  };
+}
+
+/** `lila ota publish` and `lila ota cert <slug> <file>` (0.12.0). */
+function ota(resto, banderas) {
+  const verbo = resto[0];
+  if (!verbo || !VERBOS_OTA.includes(verbo)) {
+    return error(`«${verbo ?? '(nada)'}» no es un comando de ota. Los que hay: ${VERBOS_OTA.join(', ')}.`);
+  }
+  const comando = `ota:${verbo}`;
+  const malas = validarBanderas(comando, banderas);
+  if (malas) return error(malas);
+  const url = banderas.get('url');
+  if (url !== undefined && !esUrl(url)) return error('--url tiene que ser http:// o https://');
+  if (comando === 'ota:cert') {
+    if (!resto[1] || !resto[2]) return error('Uso: lila ota cert <slug> <certificate.pem>');
+    return { error: undefined, comando, opciones: { app: resto[1], archivo: resto[2], url: url ?? null } };
+  }
+  if (resto.length > 1) return error(`«lila ota publish» no recibe argumentos sueltos, y le pasaste «${resto[1]}».`);
+  const recordApk = banderas.get('record-apk');
+  if (recordApk === true) return error('--record-apk necesita la ruta del APK: --record-apk=dist/<apk>.');
+  const embedded = banderas.get('embedded') === true;
+  if (recordApk !== undefined && (embedded || banderas.has('dry-run'))) return error('--record-apk no se combina con otras banderas: solo anota el APK.');
+  return {
+    error: undefined,
+    comando,
+    opciones: {
+      embedded,
+      dryRun: banderas.get('dry-run') === true,
+      noGitChecks: banderas.get('no-git-checks') === true,
+      recordApk: recordApk ?? null,
       url: url ?? null,
     },
   };

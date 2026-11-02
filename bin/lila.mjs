@@ -24,6 +24,7 @@ import { subirCapturas } from '../src/capturas.mjs';
 import { uploadListing } from '../src/listing.mjs';
 import { login, whoami } from '../src/sesion.mjs';
 import { menu } from '../src/menu.mjs';
+import { otaCert, otaPublish } from '../src/otaPublish.mjs';
 
 /** La versión propia, del `package.json` de al lado. No se escribe a mano. */
 const VERSION = createRequire(import.meta.url)('../package.json').version;
@@ -56,6 +57,8 @@ const comandos = {
   'app:icon': () => subirIcono(opciones.app, opciones.archivo, opciones),
   'app:screenshots': () => subirCapturas(opciones.app, opciones.archivos, opciones),
   'app:listing': () => uploadListing(opciones.app, opciones.archivo, opciones),
+  'ota:publish': () => otaPublish(opciones),
+  'ota:cert': () => otaCert(opciones.app, opciones.archivo, opciones),
 };
 
 const ejecutar = comandos[comando];
